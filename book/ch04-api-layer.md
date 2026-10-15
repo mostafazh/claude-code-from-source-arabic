@@ -1,10 +1,14 @@
 # الفصل 4: الكلام مع Claude -- الـ API Layer
 
-الفصل 3 حدّد الـ state موجود فين وإزاي المستويين بيتواصلوا مع بعض. الآن هنتابع اللي بيحصل لما الـ state ده يتستخدم فعليًا: النظام محتاج يتكلم مع language model. كل حاجة في Claude Code موجودة عشان تخدم اللحظة دي: الـ bootstrap sequence، ونظام الـ state، وإطار الصلاحيات.
+الفصل 3 حدّد الـ State متخزن فين وإزاي المستويين بيتواصلوا مع بعض. دلوقتي هنتابع اللي بيحصل لما الـ State ده يُستخدم فعلياً: النظام محتاج يكلم الـ Language Model. كل شيء في Claude Code اتصمم عشان يخدم اللحظة دي: تسلسل الإقلاع (Bootstrap Sequence)، ونظام الـ State، وإطار الصلاحيات.
 
-الطبقة دي بتتعامل مع failure modes (أشكال الفشل المحتملة) أكثر من أي جزء تاني في النظام. لازم توصّل الـ requests لـ 4 cloud providers من خلال interface واحدة شفافة. ولازم تبني الـ system prompts وهي فاهمة، على مستوى الـ byte، إزاي الـ prompt cache على الـ server بيشتغل، لأن section واحد في غير مكانه ممكن يكسر cache (cache bust) قيمته 50,000+ tokens. ولازم تعمل stream للـ responses مع اكتشاف نشط للفشل، لأن الـ TCP connections بتموت في صمت. ولازم تحافظ على invariants (شروط لازم تفضل صحيحة طول الوقت) ثابتة طول الـ session. بكده لو الـ feature flags (مفاتيح بتشغّل أو تقفل ميزات) اتغيرت في نص المحادثة، مش هيحصل انهيارات مفاجئة في الأداء من غير ما حد يلاحظ.
+الطبقة دي بتتعامل مع حالات وأشكال فشل (Failure Modes) أكثر من أي جزء تاني في النظام:
+- لازم توصل الـ Requests لـ 4 مزودي خدمات سحابية مختلفين عبر Interface واحدة موحدة.
+- لازم تبني الـ System Prompts وهي فاهمة بدقة البايت إزاي كاش البرومبت (Prompt Cache) شغال على السيرفر؛ لأن سطر واحد في غير مكانه ممكن يكسر الـ Cache بالكامل (Cache Bust) لـ 50,000+ توكن!
+- لازم تعمل Stream للـ Responses مع مراقبة حية للفشل؛ لأن اتصالات TCP ممكن تقطع في صمت.
+- ولازم تحافظ على قواعد وثوابت معمارية صارمة (Invariants) طول مدة الجلسة؛ بحيث لو اتغيرت الـ Feature Flags في نص المحادثة، ميحصلش انهيار مفاجئ في الأداء بدون ما يلاحظ أحد.
 
-تعالى نتتبع API call واحد من البداية للنهاية.
+تعالوا نتتبع مسار استدعاء API كامل من البداية للنهاية:
 
 ```mermaid
 sequenceDiagram
@@ -42,9 +46,9 @@ sequenceDiagram
 
 ---
 
-## الـ Multi-Provider Client Factory
+## مصنع العملاء متعدد المزودين (Multi-Provider Client Factory)
 
-كل الاتصال بالـ model بيعدّي على factory واحد (function وظيفتها تنشئ الـ object المناسب وترجّعه)، وهو الـ function `getAnthropicClient()`. بترجّع Anthropic SDK client مضبوط حسب الـ provider اللي الـ deployment بيستهدفه:
+كل تواصل مع الـ Model بيعدّي على Factory موحد، وهو الدالة `getAnthropicClient()`. بترجّع عميل Anthropic SDK جاهز ومتصل حسب المزود السحابي المستهدف:
 
 ```mermaid
 graph LR
@@ -56,25 +60,23 @@ graph LR
     SDK --> CL["callModel()"]
 ```
 
-الـ dispatch معتمد بالكامل على الـ environment variables، وبيتقيّم بترتيب أولوية ثابت. الـ 4 SDK classes الخاصة بالـ providers كلها بيتعملها cast لـ `Anthropic` عن طريق `as unknown as Anthropic`. والـ comment الموجود في الـ source صريح بشكل يفرح: "we have always been lying about the return type." (طول عمرنا بنكذب بخصوص الـ return type). الـ type erasure المقصود ده (إخفاء الـ type الحقيقي عمدًا) معناه إن كل consumer بيشوف interface موحدة. وباقي الـ codebase مش بيعمل branch حسب الـ provider أبدًا.
+توجيه الطلب معتمد بالكامل على متغيرات البيئة (Environment Variables)، وبيتقيم بترتيب أولوية ثابت. كلاسات الـ SDK الـ 4 بيتعمل لها Cast إلى كلاس `Anthropic` الموحد باستخدام `as unknown as Anthropic`. والتعليق اللطيف في الكود الأصلي بيقول بصراحة: "we have always been lying about the return type" (طول عمرنا بنكذب بخصوص الـ Return Type)! التجريد المتعمد ده للأنواع (Type Erasure) معناه إن باقي الكود بيشوف Interface موحدة ومبيحتاجش يعرف أنهي مزود شغال في الخلفية.
 
-كل provider SDK بيتعمله dynamic import، لأن الـ modules `AnthropicBedrock` و `AnthropicFoundry` و `AnthropicVertex` تقيلة، وكل module منها ليه الـ dependency tree الخاص بيه. الـ dynamic import بيضمن إن الـ providers اللي مش مستخدمة مش بتتحمّل أبدًا.
+كل موديول لمزود سحابي (`AnthropicBedrock`، `AnthropicFoundry`، `AnthropicVertex`) بيتعمل له Dynamic Import، لأنها موديولات ثقيلة وبتحمل معاها شجرة اعتماديات ضخمة، والـ Dynamic Import بيضمن إن المزود اللي مش مستخدم ميلمسش الذاكرة نهائياً.
 
-اختيار الـ provider بيتحدد وقت بدء التشغيل وبيتخزن في الـ bootstrap `STATE`. والـ query loop مش بيسأل أبدًا أي provider شغال. التحويل من Direct API لـ Bedrock تغيير في الإعدادات، مش تغيير في الكود.
+### الغلاف الواقي: buildFetch Wrapper
 
-### الـ buildFetch Wrapper
-
-كل fetch خارج من البرنامج بيتلف بـ wrapper عشان يضيف header اسمه `x-client-request-id`، وهو UUID بيتولّد لكل request. لما request يحصله timeout، الـ server مش بيدّي الـ response أي request ID. ومن غير الـ ID اللي من ناحية الـ client، فريق الـ API مش هيقدر يربط الـ timeout بالـ logs الموجودة على الـ server. الـ header ده بيسد الفجوة دي. وبيتبعت بس للـ first-party Anthropic endpoints، لأن الـ third-party providers ممكن ترفض headers مش معروفة.
+كل طلب fetch طالع من البرنامج بيتغلف بـ Wrapper بيضيف Header اسمه `x-client-request-id` (معرف UUID فريد لكل طلب). لما يحصل Timeout للطلب، السيرفر مبيكونش لحق يرجع Request ID في الـ Response، ومن غير الـ ID اللي اتولد في الـ Client، مهندسو الـ API مش هيعرفوا يربطوا الـ Timeout بسجلات الـ Logs على خوادمهم. الـ Header ده بيحل المشكلة دي تماماً.
 
 ---
 
-## بناء الـ System Prompt
+## بناء الـ System Prompt وحماية الـ Cache
 
-الـ system prompt هو أكثر عنصر حساس للـ cache في النظام كله. الـ API الخاص بـ Claude بيوفر prompt caching على الـ server: الـ prompt prefixes المتطابقة بين الـ requests ممكن تتخزن في الـ cache، وده بيوفّر في الـ latency (زمن الاستجابة) وفي التكلفة. محادثة حجمها 200K tokens ممكن يكون فيها 50-70K tokens متطابقة مع الـ turn اللي قبله. كسر الـ cache ده بيجبر الـ server يعالج كل ده من الأول.
+الـ System Prompt هو أكثر عنصر حساس للكاش في المنظومة كلها. خوادم Claude بتدعم ميزة الـ Prompt Caching: بدايات الـ Prompts المتطابقة بين الطلبات بتتخزن في الكاش، وده بيوفر سرعة استجابة هائلة (Latency) وبيخفض التكلفة جداً. في محادثة حجمها 200K توكن، ممكن يكون فيه 50K إلى 70K توكن متطابقة مع اللفة اللي قبلها، وتكسير الكاش ده معناه إن السيرفر هيضطر يعيد معالجة كل ده من الصفر.
 
-### الـ Dynamic Boundary Marker
+### الخط الفاصل الديناميكي (The Dynamic Boundary Marker)
 
-الـ prompt بيتبني كـ array من string sections، وفيه خط فاصل حاسم:
+البرومبت بيتبني كمصفوفة من المقاطع النصية (Sections)، وفيه خط فاصل حاسم:
 
 ```mermaid
 flowchart TD
@@ -108,108 +110,72 @@ flowchart TD
     style Dynamic fill:#ddf,stroke:#333
 ```
 
-كل اللي قبل الـ boundary متطابق بين كل الـ sessions والمستخدمين والمؤسسات، وعشان كده بياخد أعلى مستوى من الـ caching على الـ server. وكل اللي بعده فيه محتوى خاص بالمستخدم، فبينزل لـ caching على مستوى الـ session.
+- **كل ما قبل الخط الفاصل:** نص ثابت تماماً ومتطابق بين كل الجلسات والمستخدمين والشركات حول العالم؛ عشان كده بياخد أعلى مستوى كاش عالمي (Global Caching) على خوادم Anthropic.
+- **كل ما بعد الخط الفاصل:** يحتوي على بيانات خاصة بالمستخدم وجلسته؛ فينزل للكاش المخصص للجلسة فقط (Session-level Cache).
 
-طريقة تسمية الـ sections صارخة عن قصد. عشان تضيف section جديد لازم تختار بين `systemPromptSection` (آمن، وبيتخزن في الـ cache) و `DANGEROUS_uncachedSystemPromptSection` (بيكسر الـ cache، ولازم تكتب معاه reason string). الـ parameter `_reason` مش مستخدم في الـ runtime، لكنه بيشتغل كتوثيق إجباري: كل section بيكسر الـ cache شايل مبرره معاه في الـ source code.
+تسمية الدوال في الكود واضحة وصارمة جداً: لما المطور ييجي يضيف مقطع جديد لازم يختار بين `systemPromptSection` (آمن ومخزن في الكاش) وبين `DANGEROUS_uncachedSystemPromptSection` (بيكسر الكاش، ولازم تمرر معاه سبب إجباري `_reason`). والباراميتر ده بيشتغل كتوثيق إلزامي في الكود المصدري يوضح للمراجعين ليه القسم ده بيكسر الكاش.
 
-### مشكلة الـ 2^N
+### معضلة التباديل الرياضية: مشكلة 2^N
 
-فيه comment في ملف `prompts.ts` بيشرح ليه الـ conditional sections لازم تيجي بعد الـ boundary:
+فيه تعليق معماري مهم في ملف `prompts.ts` بيوضح ليه الشروط الديناميكية لازم تيجي بعد الخط الفاصل:
 
-> Each conditional here is a runtime bit that would otherwise multiply the Blake2b prefix hash variants (2^N). (كل conditional هنا عبارة عن runtime bit، ولو اتحط قبل الـ boundary كان هيضاعف عدد الـ variants الخاصة بالـ Blake2b prefix hash بمقدار 2^N.)
+> "Each conditional here is a runtime bit that would otherwise multiply the Blake2b prefix hash variants (2^N)."
 
-كل boolean condition قبل الـ boundary بيضاعف عدد الـ global cache entries المختلفة. 3 conditionals بتعمل 8 variants، و5 بتعمل 32. الـ static sections مقصود إنها تكون من غير أي شروط. الـ feature flags اللي بتتحدد في الـ compile-time (الـ bundler هو اللي بيحسمها) مقبولة قبل الـ boundary. أما الـ runtime checks (هل ده Haiku؟ هل المستخدم عنده auto mode؟) فلازم تيجي بعده.
-
-ده نوع القيود اللي مش بتشوفه غير لما تكسره. مهندس نيته كويسة ممكن يضيف قبل الـ boundary section مربوط بإعداد من إعدادات المستخدم. النتيجة إنه يفتّت الـ global cache من غير ما حد يحس، ويضاعف تكلفة معالجة الـ prompts على مستوى كل المستخدمين.
-
----
-
-## الـ Streaming
-
-### الـ Raw SSE بدل الـ SDK Abstractions
-
-الـ streaming implementation بيستخدم الـ type `Stream<BetaRawMessageStreamEvent>` الخام، بدل الـ class `BetaMessageStream` الأعلى مستوى اللي في الـ SDK. السبب: الـ class `BetaMessageStream` بيستدعي `partialParse()` مع كل event من نوع `input_json_delta`. في الـ tool calls اللي ليها JSON inputs كبيرة (تعديلات ملفات بمئات السطور)، ده معناه إن الـ JSON string اللي بيكبر بيتعمله parse من الصفر مع كل chunk. يعني سلوك O(n^2). و Claude Code بيجمّع الـ tool input بنفسه، فالـ partial parsing ده إهدار تام.
-
-### الـ Idle Watchdog
-
-الـ TCP connections ممكن تموت من غير أي إشعار. ممكن الـ server يقع، أو load balancer يقطع الـ connection في صمت، أو corporate proxy يحصله timeout. والـ request timeout الخاص بالـ SDK بيغطي الـ fetch الأول بس: أول ما HTTP 200 يوصل، الـ timeout بيعتبر إن شرطه اتحقق. ولو الـ streaming body وقف بعد كده، مفيش حاجة هتلاحظه.
-
-الـ watchdog (مؤقّت بيراقب الـ stream ويقطعه لو وقف): عبارة عن `setTimeout` بيرجع للصفر مع كل chunk بيوصل. لو عدّت 90 ثانية من غير أي chunks، الـ stream بيتلغي والنظام بيلجأ لـ retry من غير streaming. فيه تحذير بيطلع عند الثانية 45. ولما الـ watchdog يشتغل، بيسجّل الـ event ومعاه الـ client request ID عشان يتربط بالـ logs.
-
-### الـ Non-Streaming Fallback
-
-لما الـ streaming يفشل في نص الـ response (network error، أو توقف، أو قطع)، النظام بيلجأ لـ fallback (خطة بديلة لما الأساسية تفشل): synchronous call لـ `messages.create()`. وده بيعالج حالات فشل الـ proxy، زي إن الـ proxy يرجّع HTTP 200 ومعاه body مش SSE، أو يقطع الـ SSE stream في نصه.
-
-الـ fallback ممكن يتقفل لما يكون الـ streaming tool execution شغال، لأن الـ fallback هيعيد تنفيذ الـ request كله، وممكن يشغّل الـ tools مرتين.
+كل شرط Boolean يتحط قبل الخط الفاصل بيضاعف عدد تفرعات الكاش العالمي؛ فـ 3 شروط بتعمل 8 نسخ مختلفة، و 5 شروط بتعمل 32 نسخة! المقاطع الثابتة لازم تكون خالية من أي شروط وقت التشغيل، وأي فحوصات خاصة بالمستخدم أو بالوضع الحالي لازم تيجي بعد الخط الفاصل لتفادي تفتيت الكاش.
 
 ---
 
-## نظام الـ Prompt Cache
+## تقنية الـ Streaming والمراقبة الحية
 
-### 3 مستويات
+### استخدام الـ Raw SSE بدلاً من مجردات الـ SDK
 
-الـ prompt caching بيشتغل على 3 مستويات:
+الـ Streaming بيستخدم كلاس الـ SSE الخام `Stream<BetaRawMessageStreamEvent>` بدلاً من كلاس `BetaMessageStream` عالي المستوى. والسبب: الكلاس عالي المستوى بيستدعي دالة `partialParse()` مع كل حدث وصول لبيانات JSON، وفي الأدوات اللي بتتعامل مع تعديلات ملفات ضخمة، معالجة الـ JSON من الصفر مع كل Chunk بيخلي الأداء يتدهور لـ O(n^2)! و Claude Code بيجمع بيانات الأدوات بنفسه، فاستخدام الـ Raw Stream كان الخيار الأوفر والأسرع بمراحل.
 
-**الـ Ephemeral cache** (الافتراضي): caching على مستوى الـ session، ومعاه TTL (مدة صلاحية الـ cache) الـ server هو اللي بيحدده (~5 دقايق). كل المستخدمين بياخدوا ده.
+### مؤقت المراقبة (The Idle Watchdog)
 
-**الـ 1-hour TTL**: المستخدمين المؤهَّلين بياخدوا caching ممتد. الأهلية بتتحدد حسب حالة الاشتراك، وبتتثبت عن طريق latch (flag لما يتفعّل مرة بيفضل مفعّل لآخر الـ session) في الـ bootstrap state. الـ sticky latch `promptCache1hEligible` من الفصل 3 بيضمن إن لو حالة الـ overage (تجاوز حد الاستهلاك) اتقلبت في نص الـ session، الـ TTL مش هيتغير.
+اتصالات الشبكة ممكن تموت بدون أي تحذير؛ السيرفر يقع، أو الـ Proxy يقطع الاتصال في صمت. والـ Timeout الافتراضي للـ SDK بيفحص فقط أول اتصال HTTP 200، ولو التدفق وقف بعدها مفيش حاجة هتحس بيه!
 
-**الـ Global scope**: الـ cache entries الخاصة بالـ system prompt بتتشارك بين الـ sessions وبين المؤسسات. الأجزاء الـ static من الـ prompt متطابقة عند كل مستخدمي Claude Code، فنسخة واحدة في الـ cache بتخدم الكل. الـ global scope بيتقفل لما يكون فيه MCP tools، لأن الـ MCP tool definitions خاصة بكل مستخدم، وكانت هتفتّت الـ cache لملايين الـ prefixes المختلفة.
-
-### الـ Sticky Latches وهي شغالة
-
-الـ 5 sticky latches اللي من الفصل 3 بتتقيّم هنا، أثناء بناء الـ request. كل latch بيبدأ بقيمة `null`، وأول ما يتحط على `true` بيفضل `true` لآخر الـ session. والـ comment اللي فوق الـ latch block دقيق: "Sticky-on latches for dynamic beta headers. Each header, once first sent, keeps being sent for the rest of the session so mid-session toggles don't change the server-side cache key and bust ~50-70K tokens." (latches من نوع sticky-on للـ dynamic beta headers. كل header، بعد أول مرة يتبعت فيها، بيفضل يتبعت لآخر الـ session، بحيث إن أي toggle في نص الـ session مش هيغيّر الـ cache key على الـ server ولا هيكسر ~50-70K tokens).
-
-ارجع للفصل 3، القسم 3.1 عشان تلاقي الشرح الكامل للـ latch pattern، والـ 5 latches بالتحديد، وليه إن كل الـ headers تتبعت دائمًا مش هو الحل الصح.
+هنا بيتدخل الـ Watchdog: مؤقت `setTimeout` بيتعاد ضبطه للصفر مع كل Chunk يوصل بنجاح. لو مرت 90 ثانية كاملة بدون وصول أي داتا، الـ Watchdog بيلغي الـ Stream ويعلن فشل الاتصال ليتم اللجوء لخطة بديلة (Fallback) لإعادة المحاولة.
 
 ---
 
-## الـ queryModel Generator
+## نظام مستويات الـ Prompt Cache
 
-الـ function `queryModel()` عبارة عن async generator (~700 سطر)، يعني function بترجّع قيمها واحدة واحدة بشكل asynchronous. وهي اللي بتنسّق دورة حياة الـ API call كلها. بتعمل yield لـ objects من نوع `StreamEvent` و `AssistantMessage` و `SystemAPIErrorMessage`.
-
-تجميع الـ request ماشي على تسلسل مترتب بعناية:
-
-1. **الـ Kill switch check** -- صمام أمان لأغلى model tier
-2. **تجميع الـ beta headers** -- حسب كل model، مع تطبيق الـ sticky latches
-3. **بناء الـ tool schemas** -- بالتوازي عن طريق `Promise.all()`، والـ deferred tools بتفضل مستبعدة لحد ما تتكتشف
-4. **الـ Message normalization** -- إصلاح الـ tool_use/tool_result اللي مالهاش مقابل (orphaned)، وإزالة الـ media الزيادة، وحذف الـ blocks القديمة
-5. **بناء الـ system prompt blocks** -- تقسيم عند الـ dynamic boundary، وتحديد الـ cache scopes
-6. **الـ streaming الملفوف بـ retry** -- بيتعامل مع 529 (overloaded)، والـ model fallback، والـ thinking downgrade، والـ OAuth refresh
-
-### الـ Output Token Cap
-
-الـ output cap (الحد الأقصى لعدد الـ output tokens) الافتراضي هو 8,000 tokens، مش 32K أو 64K المعتادين. بيانات الـ production بيّنت إن الـ p99 للـ output هو 4,911 tokens، يعني الحدود المعتادة بتحجز أكثر من المطلوب بـ 8-16x. لما response يوصل للـ cap (<1% من الـ requests)، بياخد retry واحد بحد 64K. وده بيوفّر تكلفة كبيرة على مستوى كل المستخدمين.
-
-### الـ Error Handling والـ Retry
-
-الـ function `withRetry()` هي نفسها async generator، بتعمل yield لـ events من نوع `SystemAPIErrorMessage` عشان الـ UI يقدر يعرض حالة الـ retry. استراتيجيات الـ retry:
-
-- **529 (overloaded)**: النظام بيستنى ويعيد المحاولة، ومعاها اختياريًا downgrade للـ fast mode
-- **الـ Model fallback**: الـ model الأساسي فشل، فالنظام بيجرّب fallback (مثلًا من Opus لـ Sonnet)
-- **الـ Thinking downgrade**: لما الـ context window يحصله overflow، الـ thinking budget بيقل
-- **OAuth 401**: النظام بيعمل refresh للـ token ويعيد المحاولة مرة واحدة
-
-الـ generator pattern معناه إن تقدّم الـ retry ("Server overloaded, retrying in 5s..."، أي: الـ server عليه حمل زايد، وهنعيد المحاولة بعد 5 ثواني) بيظهر كجزء طبيعي من الـ event stream، مش كإشعار جاي من side channel منفصل.
+الكاش بيشتغل على 3 مستويات هندسية:
+1. **الـ Ephemeral Cache (الافتراضي):** كاش مؤقت للجلسة بمدة صلاحية (TTL) يحددها السيرفر (~5 دقائق).
+2. **الـ 1-Hour Extended TTL:** للمستخدمين المشتركين في خطط معينة؛ وبيتم تثبيته عبر مزلاج (Sticky Latch) يضمن بقاء الـ TTL ثابتاً حتى لو تغيرت حالة الاستهلاك في منتصف الجلسة.
+3. **الـ Global Scope:** مشاركة كاش الـ System Prompt الثابت بين كل مستخدمي Claude Code في العالم لتوفير استهلاك الخوادم.
 
 ---
 
-## طبّق ده
+## دالة queryModel Generator وإدارة الأخطاء
 
-**اتعامل مع الـ prompt caching كقيد في الـ architecture، مش كميزة بتشغّلها وتقفلها.** معظم تطبيقات الـ LLM "بتشغّل" الـ caching. أما Claude Code فبيتعامل معاه كقيد تصميم بيشكّل ترتيب الـ prompt، والـ section memoization (يحسب النتيجة مرة واحدة ويحتفظ بيها)، والـ header latching، وإدارة الإعدادات. الفرق بين prompt مبني كويس (cache hit على 50K tokens) و prompt مبني بشكل سيئ (إعادة معالجة كاملة في كل turn) هو أكبر عامل بيتحكم في التكلفة في النظام كله.
+الدالة `queryModel()` عبارة عن Async Generator بحجم 700 سطر بتدير دورة حياة استدعاء الـ API بالكامل، وتعمل yield لأحداث `StreamEvent` و `AssistantMessage`.
 
-**استخدم تسمية DANGEROUS للـ escape hatches المكلفة.** لما يكون في الـ codebase invariant سهل يتكسر بالغلط، تسمية الـ escape hatch (مخرج استثنائي من القاعدة) بـ prefix صارخ بتعمل 3 حاجات: بتخلي المخالفات ظاهرة في الـ code review، وبتفرض التوثيق (الـ reason parameter الإجباري)، وبتخلق مقاومة نفسية بتدفعك ناحية الاختيار الافتراضي الآمن. والمبدأ ده مش مقصور على الـ caching، وبينطبق على أي عملية تكلفتها مش ظاهرة.
+### التحكم في سقف المخرجات (Output Token Cap)
 
-**ابني الـ streaming ومعاه watchdog، مش مجرد timeout.** الـ request timeout الخاص بالـ SDK بيتحقق شرطه بمجرد وصول HTTP 200، لكن الـ response body ممكن يبطل يوصل في أي لحظة. لو عندك `setTimeout` بيرجع للصفر مع كل chunk، هيمسك الحالة دي. والـ non-streaming fallback بيعالج الـ failure modes الخاصة بالـ proxy (HTTP 200 مع body مش SSE، أو قطع الـ stream في نصه)، ودي حالات منتشرة في بيئات الشركات أكثر مما تتوقع.
+الحد الأقصى الافتراضي لمخرجات الـ Tokens هو **8,000 توكن** فقط بدلاً من 64K المعتادة؛ لأن قياسات البيئات الإنتاجية أثبتت إن نسبة 99% من الردود حجمها 4,911 توكن، وحجز 64K مسبقاً في كل طلب كان بيحجز موارد ضخمة على السيرفر بدون فائدة. وإذا وصل رد معين للسقف (وهذا يحصل في أقل من 1% من الحالات)، بيتم تشغيل Retry واحد فقط بسقف 64K.
 
-**خلي استراتيجيات الـ retry مبنية على yield، مش على exceptions.** لما الـ retry wrapper يبقى async generator بيعمل yield لـ status events، الـ caller بيعرض تقدّم الـ retry كجزء طبيعي من الـ event stream. والـ model fallback pattern (Opus يفشل، فتجرّب Sonnet) مفيد بشكل خاص عشان النظام يصمد في الـ production.
+### استراتيجيات إعادة المحاولة (Retry Strategies)
 
-**افصل الـ fast path (طريق مختصر للحالات البسيطة) عن الـ pipeline الكامل.** مش كل API call محتاج الـ tool search، والـ advisor integration، والـ thinking budgets، والـ streaming infrastructure. الـ function `queryHaiku()` في Claude Code بتوفر مسار مبسط للعمليات الداخلية (الـ compaction، والـ classification)، وبتتخطى كل ما يخص الجانب الـ agentic. لما تعمل function منفصلة بـ interface مبسطة، بتمنع تسرّب التعقيد من غير قصد.
+دالة `withRetry()` عبارة عن Generator بيرجع أحداث تفاعلية لشاشة المستخدم توضح حالة المحاولة:
+- خطأ **529 (Server Overloaded):** النظام ينتظر ويعيد المحاولة مع تقليل الحمل.
+- **Model Fallback:** إذا فشل نموذج Opus، ينتقل تلقائياً لـ Sonnet.
+- **Thinking Downgrade:** إذا فاضت نافذة السياق (Context Window Overflow)، يقلل مساحة التفكير تلقائياً.
+- **OAuth 401:** يجدد الـ Token ويعيد المحاولة فوراً.
 
 ---
 
-## الخطوة الجاية
+## دروس مستفادة في تصميم الأنظمة (Takeaways)
 
-الـ API layer هو الأساس اللي مبني عليه كل اللي جاي. الفصل 5 هيوضح إزاي الـ query loop بيستخدم الـ streaming response عشان يحرّك الـ tool execution، وكمان إزاي الـ tools بتبدأ تتنفذ قبل ما الـ model يخلّص الـ response الخاص بيه. الفصل 6 هيشرح إزاي نظام الـ compaction (ضغط المحادثة عشان تفضل داخل الـ context window) بيحافظ على كفاءة الـ cache لما المحادثات تقرّب من حد الـ context. الفصل 7 هيوضح إزاي كل agent thread بياخد الـ message array والـ request chain الخاصين بيه.
+**1. تعامل مع الـ Prompt Caching كقيد معماري أساسي وليس مجرد ميزة:**
+ترتيب البرومبت، وتجميد المزاليج (Sticky Latches)، وفصل الثوابت عن المتغيرات بخط فاصل، كلها قرارات معمارية توفر آلاف الدولارات وملايين التوكنز يومياً.
 
-كل الأنظمة دي بتورث القيود اللي اتحطت هنا: ثبات الـ cache كـ invariant في الـ architecture، وشفافية الـ provider من خلال الـ client factory، وإعدادات ثابتة طول الـ session من خلال نظام الـ latch. الـ API layer مش بيبعت requests وبس. هو اللي بيحدد القواعد اللي كل نظام تاني بيشتغل بيها.
+**2. استخدم تسميات تحذيرية صريحة (DANGEROUS Naming):**
+إطلاق أسماء تحذيرية زي `DANGEROUS_uncached` على الدوال التي تكسر القواعد المعمارية يجعل أي استخدام خاطئ مكشوفاً في مراجعات الكود (Code Reviews).
+
+**3. ابْنِ الـ Streaming ومعه Watchdog حقيقي:**
+لا تعتمد على مهلة الاتصال الأولية (Connection Timeout)؛ راقب تدفق الحزم أولاً بأول لتكتشف انقطاعات الشبكة الصامتة فور حدوثها.
+
+**4. افصل المسارات البسيطة (Fast Paths) عن المسار الكامل:**
+الاستدعاءات الداخلية السريعة (مثل تصنيف المحادثة أو ضغط النصوص) وفر لها دالة خفيفة مخصصة تتخطى تعقيدات الـ Tools ونظام الوكلاء.

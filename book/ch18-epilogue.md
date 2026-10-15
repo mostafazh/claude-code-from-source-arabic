@@ -8,9 +8,9 @@
 
 أغلب الـ agent frameworks بتديك pipeline: بتعرّف الـ tools، وبتسجّل handlers، وبتسيب الـ framework يعمل orchestration. المطوّر بيكتب callbacks. والـ framework هو اللي بيقرر إمتى يستدعيها.
 
-برنامج Claude Code بيعمل العكس. الـ function `query()` عبارة عن async generator (function بترجّع قيمها واحدة واحدة بشكل asynchronous)، والمطوّر هو اللي ماسك الـ loop. الـ model بيعمل stream للـ response، والـ generator بيعمل yield للـ tool calls، والطرف اللي استدعاه بينفذها ويضيف النتائج، والـ generator بيلف تاني. فيه function واحدة، و data flow واحد، ومكان واحد كل تفاعل بيعدّي منه. الـ 10 terminal states والـ 7 continuation states في الـ return type الخاص بالـ generator بتمثّل كل نتيجة ممكنة. الـ loop هو النظام.
+برنامج Claude Code بيعمل العكس. الـ function `query()` عبارة عن async generator، والمطوّر هو اللي ماسك الـ loop. الـ model بيعمل stream للـ response، والـ generator بيعمل yield للـ tool calls، والطرف اللي استدعاه بينفذها ويضيف النتائج، والـ generator بيلف تاني. فيه function واحدة، و data flow واحد، ومكان واحد كل تفاعل بيعدّي منه. الـ 10 terminal states والـ 7 continuation states في الـ return type الخاص بالـ generator بتمثّل كل نتيجة ممكنة. الـ loop هو النظام.
 
-الرهان كان إن generator function واحدة، حتى لو كبرت لـ 1,700 سطر، هتكون أسهل في الفهم من callback graph موزّع. وبعد دراسة الـ source، الرهان كسب. لما تحب تفهم ليه الـ session انتهت، بتبص على function واحدة. ولما تحب تضيف terminal state جديد، بتضيف variant واحد لـ discriminated union (type بيجمع كذا حالة، وكل حالة ليها علامة بتميزها) واحد. والـ type system بيفرض إنك تتعامل مع كل الحالات من غير ما تنسى واحدة. أما الـ callback architecture فكانت هتوزّع المنطق ده على عشرات الملفات، والتفاعلات بين الـ callbacks كانت هتبقى ضمنية بدل ما تكون ظاهرة في الـ control flow.
+الرهان كان إن generator function واحدة، حتى لو كبرت لـ 1,700 سطر، هتكون أسهل في الفهم من callback graph موزّع. وبعد دراسة الـ source، الرهان كسب. لما تحب تفهم ليه الـ session انتهت، بتبص على function واحدة. ولما تحب تضيف terminal state جديد، بتضيف variant واحد لـ discriminated union واحد. والـ type system بيفرض إنك تتعامل مع كل الحالات من غير ما تنسى واحدة. أما الـ callback architecture فكانت هتوزّع المنطق ده على عشرات الملفات، والتفاعلات بين الـ callbacks كانت هتبقى ضمنية بدل ما تكون ظاهرة في الـ control flow.
 
 ### الرهان 2: الـ File-Based Memory بدل الـ Databases
 
@@ -32,11 +32,11 @@
 
 ### الرهان 5: الـ Hooks بدل الـ Plugins
 
-أغلب أنظمة قابلية التوسعة بتستخدم plugins: كود بيسجّل قدرات وبيشتغل داخل الـ host process. أما Claude Code فبيستخدم hooks: processes خارجية بتشتغل عند نقاط في الـ lifecycle (دورة حياة التنفيذ) وبتتواصل عن طريق الـ exit codes و JSON على stdin/stdout.
+أغلب أنظمة قابلية التوسعة بتستخدم plugins: كود بيسجّل قدرات وبيشتغل داخل الـ host process. أما Claude Code فبيستخدم hooks: processes خارجية بتشتغل عند نقاط في الـ lifecycle وبتتواصل عن طريق الـ exit codes و JSON على stdin/stdout.
 
 الرهان هو إن عزل الـ processes يستاهل الـ overhead. الـ plugin ممكن يعمل crash للـ host. أما الـ hook لما يعمل crash، اللي بيقع هو الـ process الخاصة بيه بس. الـ plugin ممكن يسرّب ذاكرة في الـ heap الخاص بالـ host. ذاكرة الـ hook بتموت مع الـ process الخاصة بيه. الـ plugin محتاج API surface لازم يتعمل لها versioning وصيانة. الـ hook محتاج stdin و stdout و exit code، وده بروتوكول ثابت من سنة 1971.
 
-الـ overhead حقيقي: عمل spawn لـ process مع كل استدعاء للـ hook بيكلّف شوية ملي ثانية، الـ callback اللي بيشتغل in-process (جوه نفس الـ process، من غير process جديدة) ماكانش هيدفعها. والـ fast path (طريق مختصر للحالات البسيطة) اللي بيوفّر 70% من الـ overhead للـ callbacks الداخلية (الفصل 12) بيوضّح إن النظام عارف إن التكلفة دي مهمة. لكن للـ hooks الخارجية، زي scripts المستخدم و linters الفريق و policy servers على مستوى الشركات، ضمان العزل بيخلّي توسعة النظام أكثر أمانًا. الشركة تقدر تفرض سياساتها عن طريق الـ hooks من غير ما تقلق إن hook script مكتوب غلط يعمل crash لـ sessions المطوّرين عندها.
+الـ overhead حقيقي: عمل spawn لـ process مع كل استدعاء للـ hook بيكلّف شوية ملي ثانية، الـ callback اللي بيشتغل in-process ماكانش هيدفعها. والـ fast path اللي بيوفّر 70% من الـ overhead للـ callbacks الداخلية (الفصل 12) بيوضّح إن النظام عارف إن التكلفة دي مهمة. لكن للـ hooks الخارجية، زي scripts المستخدم و linters الفريق و policy servers على مستوى الشركات، ضمان العزل بيخلّي توسعة النظام أكثر أمانًا. الشركة تقدر تفرض سياساتها عن طريق الـ hooks من غير ما تقلق إن hook script مكتوب غلط يعمل crash لـ sessions المطوّرين عندها.
 
 ---
 
@@ -52,7 +52,7 @@
 
 **الـ asymmetric read/write channels للتنفيذ عن بُعد.** لما القراءات streams عالية التكرار والكتابات RPCs قليلة التكرار، فصلهم عن بعض هو الصح، بغض النظر عن الـ transport protocol المستخدم.
 
-**الـ bitmap pre-filters للبحث.** أي agent بيبحث في file index كبير هيستفيد من letter bitmap بـ 26-bit كـ pre-filter (فلتر أولي رخيص بيستبعد أغلب النتائج قبل البحث الفعلي). 4 bytes لكل entry، ومقارنة integer واحدة لكل candidate: نسبة التكلفة للفايدة مذهلة.
+**الـ bitmap pre-filters للبحث.** أي agent بيبحث في file index كبير هيستفيد من letter bitmap بـ 26-bit كـ pre-filter. 4 bytes لكل entry، ومقارنة integer واحدة لكل candidate: نسبة التكلفة للفايدة مذهلة.
 
 **ثبات الـ prompt cache كمسألة architecture.** لو الـ agent عندك بيستخدم API فيه prompt caching، ترتيب الـ prompt بحيث المحتوى الثابت في الأول والمحتوى المتغير في الآخر مش optimization. ده قرار في الـ architecture بيحدد هيكل التكلفة عندك.
 
@@ -78,7 +78,7 @@
 
 **تنوّع الـ protocols.** دعم 5 terminal keyboard protocols، و 8 MCP transport types، و 4 remote execution topologies، و 7 configuration scopes حاجة معقدة بطبيعتها. كل protocol إضافي بيكبّر الـ codebase بشكل خطي مش أسّي، لكن المجموع كبير. والتعقيد ده accidental بالمعنى اللي قصده Brooks: جاي من البيئة (اختلاف الـ terminals عن بعضها، وتطوّر الـ MCP transports، و topologies النشر عن بُعد)، مش من المشكلة اللي بنحلها.
 
-**تحسين الأداء.** الـ pool-based rendering، والـ bitmap search pre-filters، والـ sticky cache latches (flags لما تتفعّل مرة بتفضل مفعّلة لآخر الـ session)، والـ speculative tool execution (تنفيذ مبكر على أمل إن النتيجة هتتحتاج)، كل واحد فيهم بيضيف تعقيد مقابل مكاسب أداء قابلة للقياس. والتعقيد ده مبرر بالقياس: كل optimization سبقها profiling data حدد الـ bottleneck (عنق الزجاجة). الخطر إن الـ optimizations تتراكم وتتفاعل مع بعض بطرق تخلّي الـ hot paths أصعب في التعديل.
+**تحسين الأداء.** الـ pool-based rendering، والـ bitmap search pre-filters، والـ sticky cache latches (flags لما تتفعّل مرة بتفضل مفعّلة لآخر الـ session)، والـ speculative tool execution، كل واحد فيهم بيضيف تعقيد مقابل مكاسب أداء قابلة للقياس. والتعقيد ده مبرر بالقياس: كل optimization سبقها profiling data حدد الـ bottleneck (عنق الزجاجة). الخطر إن الـ optimizations تتراكم وتتفاعل مع بعض بطرق تخلّي الـ hot paths أصعب في التعديل.
 
 **ضبط السلوك.** تعليمات الـ prompt في نظام الـ memory، وتحذيرات الـ staleness (إن الـ memory بقت قديمة ومش مطابقة للواقع)، وبروتوكول التحقق، وتعليمة الـ anti-pattern "ignore memory" (تجاهل الـ memory)، كل دول مش تعقيد في الكود. دول تعقيد في الـ prompt، وعبء صيانتهم مختلف. لما سلوك الـ model يتغير من إصدار للتاني، تعليمات الـ prompt اللي اتضبطت بعناية عن طريق الـ evals ممكن تحتاج ضبط من جديد. الـ eval infrastructure (اللي بتظهر على طول الـ codebase على شكل أرقام cases و eval scores) هي الدفاع ضد الـ regression، لكنها محتاجة استثمار مستمر.
 
@@ -100,7 +100,7 @@
 
 نظام الـ sub-agents في Claude Code (الفصل 8)، وتنسيق الـ tasks (الفصل 10)، وآلية الـ fork (الفصل 9) كلها implementations مبكرة لـ multi-agent patterns. بتحل مشاكل محددة، زي مشاركة الـ cache والاستكشاف بالتوازي والتحقق المنظم، لكنها كمان بتكشف التحدي الأساسي: الـ coordination overhead.
 
-كل رسالة بين agents بتستهلك tokens. كل fork بيشارك في الـ cache لكنه بيضيف فرع محادثة لازم الـ parent في الآخر يوفّق بينه وبين محادثته. والـ state machine (مجموعة حالات محددة وانتقالات بينها) الخاص بالـ Task system (queued و running و completed و failed و cancelled) هو آلية تنسيق بتضيف تعقيد من غير ما تضيف قدرة. وكل ما الـ agents تبقى أقدر، الضغط هيتحول من "how do we coordinate multiple agents?" (إزاي ننسق بين أكثر من agent؟) لـ "how do we make one agent capable enough that coordination is unnecessary?" (إزاي نخلّي agent واحد قادر كفاية إن التنسيق مايبقاش محتاج أصلًا؟).
+كل رسالة بين agents بتستهلك tokens. كل fork بيشارك في الـ cache لكنه بيضيف فرع محادثة لازم الـ parent في الآخر يوفّق بينه وبين محادثته. والـ state machine الخاص بالـ Task system (queued و running و completed و failed و cancelled) هو آلية تنسيق بتضيف تعقيد من غير ما تضيف قدرة. وكل ما الـ agents تبقى أقدر، الضغط هيتحول من "how do we coordinate multiple agents?" (إزاي ننسق بين أكثر من agent؟) لـ "how do we make one agent capable enough that coordination is unnecessary?" (إزاي نخلّي agent واحد قادر كفاية إن التنسيق مايبقاش محتاج أصلًا؟).
 
 الأدلة الحالية بتقول إن الطريقتين هيتعايشوا مع بعض. الـ tasks البسيطة هتستخدم agent واحد. والـ tasks المعقدة هتستخدم أنظمة multi-agent منسّقة. والتحدي الهندسي هو إنك تخلّي الـ coordination overhead قليل لدرجة إن نقطة التحوّل تميل للـ multi-agent في الشغل اللي فعلًا ينفع يتعمل بالتوازي، مش بس في الـ tasks اللي معقدة.
 
@@ -124,12 +124,12 @@
 
 ## الختام
 
-17 فصل. 6 core abstractions (مفاهيم أساسية بتخبّي التفاصيل وراها). generator loop في المنتصف، و tools بتمتد للخارج، و memory بترجع للوراء عبر الزمن، و hooks بتحرس الحدود، و rendering engine بيترجم كل ده لحروف على الشاشة، و MCP بيوصله بالعالم خارج الـ codebase.
+17 فصل. 6 core abstractions. generator loop في المنتصف، و tools بتمتد للخارج، و memory بترجع للوراء عبر الزمن، و hooks بتحرس الحدود، و rendering engine بيترجم كل ده لحروف على الشاشة، و MCP بيوصله بالعالم خارج الـ codebase.
 
 أعمق pattern في Claude Code مش تقنية بعينها. هو القرار المتكرر بدفع التعقيد للحدود. نظام الـ rendering بيدفع التعقيد للـ pools والـ diff: داخل الـ pipeline، كل حاجة مقارنات integers. نظام الـ input بيدفع التعقيد للـ tokenizer والـ keybinding resolver: داخل الـ handlers، كل حاجة typed actions. نظام الـ memory بيدفع التعقيد للـ write protocol والـ recall selector: داخل المحادثة، كل حاجة context. والـ agent loop بيدفع التعقيد للـ terminal states والـ tool system: داخل الـ loop، الحكاية كلها: اعمل stream، اجمع، نفّذ، ضيف، كرّر.
 
 كل حد من الحدود دي بيمتص الفوضى ويطلّع انتظام. الـ bytes الخام بتبقى `ParsedKey`. ملفات Markdown بتبقى memories متسترجعة. الـ MCP JSON-RPC بيبقى objects من نوع `Tool`. الـ exit codes الخاصة بالـ hooks بتبقى قرارات صلاحيات. على جانب من كل حد، العالم مبعثر: 5 keyboard protocols، و OAuth servers هشة، و memories قديمة، و hooks من repositories غير موثوقة. وعلى الجانب التاني، العالم typed، ومحدود، ومتعامل مع كل حالاته.
 
-لو بتبني نظام agentic (يعني الـ model هو اللي بيقرر الخطوات وقت التشغيل)، فده الدرس اللي ينفع تاخده معاك. مش التقنيات بعينها: ممكن ماتحتاجش pool-based rendering ولا KAIROS mode ولا 8 MCP transports. لكن المبدأ: حدد حدودك، وامتص التعقيد عندها، وخلّي كل اللي بينها نظيف. الحدود هي المكان اللي الهندسة فيه صعبة. والداخل هو المكان اللي الهندسة فيه ممتعة. صمّم عشان يكون الداخل ممتع، واستثمر ميزانية التعقيد الخاصة بيك عند الأطراف.
+لو بتبني نظام agentic، فده الدرس اللي ينفع تاخده معاك. مش التقنيات بعينها: ممكن ماتحتاجش pool-based rendering ولا KAIROS mode ولا 8 MCP transports. لكن المبدأ: حدد حدودك، وامتص التعقيد عندها، وخلّي كل اللي بينها نظيف. الحدود هي المكان اللي الهندسة فيه صعبة. والداخل هو المكان اللي الهندسة فيه ممتعة. صمّم عشان يكون الداخل ممتع، واستثمر ميزانية التعقيد الخاصة بيك عند الأطراف.
 
 الـ source code مفتوح. والسلطعون ماسك الخريطة في مخلبه. روح اقرأه.

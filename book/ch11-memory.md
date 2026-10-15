@@ -22,7 +22,7 @@
 
 الـ model بيقرأ ويكتب الـ memories باستخدام `FileWriteTool` و `FileEditTool`، وهي نفس الـ tools اللي بيعدّل بيها الـ source code (اتعرفنا عليها في الفصل 6). مفيش أي memory API خاص. الـ system prompt بيعلّم الـ model بروتوكول كتابة من خطوتين (أنشئ الملف، وحدّث الـ index)، والـ model بينفذه بقدراته الموجودة أصلًا تحت تعليمات جديدة. ده إعادة استخدام للـ tools كمبدأ في الـ architecture: نظام الـ memory مش subsystem متركّب على الـ agent من الخارج، هو سلوك ناشئ من الـ agent وهو بيستخدم قدراته الموجودة.
 
-وفيه سبب أعمق بيخلي اختيار الملفات ينجح هنا. الـ memory عند الـ AI agent مختلف جوهريًا عن الـ memory في تطبيق تقليدي. الـ database في التطبيق التقليدي بتحتفظ بـ state موثوق: هي الـ source of truth (المرجع الوحيد المعتمد) لبيانات النظام. أما الـ memory الخاص بالـ agent فبيحتفظ بـ *ملاحظات*: حاجات كانت صحيحة في لحظة معينة، وممكن تكون ما زالت صحيحة وممكن لأ. الملفات بتوصّل الحالة المعرفية دي بشكل طبيعي. عندها modification times بتكشف إمتى الملاحظة اتسجلت. وبيقدر يقرأها ويعدّلها ويمسحها إنسان عارف إن الملاحظة غلط. الـ database بتوحي بالدوام والسلطة، أما ملف Markdown فبيوحي بملاحظة حد كتبها وممكن تحتاج تتحدّث. وسيلة التخزين نفسها بتوصّل طبيعة البيانات: دي ملاحظات شغل، مش حقائق مقدسة.
+وفيه سبب أعمق بيخلي اختيار الملفات ينجح هنا. الـ memory عند الـ AI agent مختلف جوهريًا عن الـ memory في تطبيق تقليدي. الـ database في التطبيق التقليدي بتحتفظ بـ state موثوق: هي الـ source of truth لبيانات النظام. أما الـ memory الخاص بالـ agent فبيحتفظ بـ *ملاحظات*: حاجات كانت صحيحة في لحظة معينة، وممكن تكون ما زالت صحيحة وممكن لأ. الملفات بتوصّل الحالة المعرفية دي بشكل طبيعي. عندها modification times بتكشف إمتى الملاحظة اتسجلت. وبيقدر يقرأها ويعدّلها ويمسحها إنسان عارف إن الملاحظة غلط. الـ database بتوحي بالدوام والسلطة، أما ملف Markdown فبيوحي بملاحظة حد كتبها وممكن تحتاج تتحدّث. وسيلة التخزين نفسها بتوصّل طبيعة البيانات: دي ملاحظات شغل، مش حقائق مقدسة.
 
 ### الـ Per-Project Scoping
 
@@ -92,7 +92,7 @@ graph LR
 
 ### الـ Frontmatter كـ Contract
 
-كل ملف memory بيستخدم YAML frontmatter (الـ metadata اللي في أول الملف بين `---`) فيه 3 fields مطلوبة:
+كل ملف memory بيستخدم YAML frontmatter فيه 3 fields مطلوبة:
 
 ```markdown
 ---
@@ -176,7 +176,7 @@ flowchart TD
 
 الرد بيستخدم structured output: `{ selected_memories: string[] }`، وأسماء الملفات بتتحقق مقابل المجموعة المعروفة.
 
-الطريقة دي بتضحّي بشوية latency في مقابل الدقة، وتحليل الـ trade-off (مفاضلة: بتكسب حاجة وبتدفع ثمنها في حاجة تانية) هنا مفيد. **الـ Keyword matching** هيكون سريع لكنه مش بيفهم السياق: مش بيقدر يعبّر عن "do not select memories for tools already in active use" (ماتختارش memories لـ tools شغالة فعليًا). **الـ Embedding similarity** بيتعامل مع التطابق الدلالي لكنه بيجيب معاه infrastructure (embedding model، و vector store، و update pipeline) وضعيف في التعامل مع النفي: الـ embedding الخاص بـ "do NOT use database mocks" (ماتستخدمش database mocks) قريب جدًا من "use database mocks" (استخدم database mocks). **الـ Sonnet side-query** بيفهم الصلة الدلالية، وبيفكّر في السياق، وبيتعامل مع النفي، ومش محتاج أي infrastructure. وتكلفة الـ latency محدودة (مئات الملي ثانية) ومخفية وراء المعالجة الأولية للـ model الرئيسي.
+الطريقة دي بتضحّي بشوية latency في مقابل الدقة، وتحليل الـ trade-off هنا مفيد. **الـ Keyword matching** هيكون سريع لكنه مش بيفهم السياق: مش بيقدر يعبّر عن "do not select memories for tools already in active use" (ماتختارش memories لـ tools شغالة فعليًا). **الـ Embedding similarity** بيتعامل مع التطابق الدلالي لكنه بيجيب معاه infrastructure (embedding model، و vector store، و update pipeline) وضعيف في التعامل مع النفي: الـ embedding الخاص بـ "do NOT use database mocks" (ماتستخدمش database mocks) قريب جدًا من "use database mocks" (استخدم database mocks). **الـ Sonnet side-query** بيفهم الصلة الدلالية، وبيفكّر في السياق، وبيتعامل مع النفي، ومش محتاج أي infrastructure. وتكلفة الـ latency محدودة (مئات الملي ثانية) ومخفية وراء المعالجة الأولية للـ model الرئيسي.
 
 نظام الـ telemetry بيتابع معدلات الاختيار حتى لما مفيش memories بتتختار. معدل اختيار 0/150 معناه حاجة مختلفة عن 0/3: الأول بيشير لمشكلة في الدقة، والتاني لمشكلة في التغطية.
 
@@ -214,7 +214,7 @@ flowchart TD
 
 ## الـ Team Memory
 
-الـ team memory عبارة عن مجلد فرعي داخل مجلد الـ auto-memory على المسار `<autoMemPath>/team/`، ومحمي وراء feature flag (مفتاح بيشغّل أو يقفل ميزة) وبيشترط إن الـ auto-memory يكون مفعّل. وإن الـ team memory يكون جزء داخل الـ auto-memory في الـ architecture أمر مقصود: تعطيل الـ auto-memory بيعطّل الـ team memory معاه بالتبعية.
+الـ team memory عبارة عن مجلد فرعي داخل مجلد الـ auto-memory على المسار `<autoMemPath>/team/`، ومحمي وراء feature flag وبيشترط إن الـ auto-memory يكون مفعّل. وإن الـ team memory يكون جزء داخل الـ auto-memory في الـ architecture أمر مقصود: تعطيل الـ auto-memory بيعطّل الـ team memory معاه بالتبعية.
 
 ### الـ Defense in Depth
 
@@ -226,7 +226,7 @@ flowchart TD
 
 **الطبقة 3: حل الـ symlinks.** الـ function `realpathDeepestExisting()` بتحل الـ symlinks على أعمق ancestor موجود فعليًا، وده بيلتقط هجمات التحقق على مستوى الـ string مش بيقدر يكشفها. لو `team/evil` عبارة عن symlink بيشير لـ `/etc/`، التحقق على مستوى الـ string هيشوف prefix صالح، لكن `realpath` بيكشف الهدف الحقيقي.
 
-كل حالات فشل التحقق بتنتج `PathTraversalError`. مفيش نجاح جزئي، ولا fallbacks. النظام fail-closed (لو حصل شك، الافتراضي هو الأكثر أمانًا).
+كل حالات فشل التحقق بتنتج `PathTraversalError`. مفيش نجاح جزئي، ولا fallbacks. النظام fail-closed.
 
 ### إرشادات الـ Scope
 
@@ -275,7 +275,7 @@ graph LR
 
 الـ agent الرئيسي عنده تعليمات كاملة لكتابة الـ memories بمبادرة منه. لكن الـ agents مش كاملة، وعدم الكمال ده متوقع. لما المستخدم يقول "remember to always use integration tests" (افتكر إنك تستخدم integration tests دائمًا) وبعدها على طول يطلب "now fix the login bug" (والآن أصلح الـ bug في الـ login)، انتباه الـ model بيتحوّل بالكامل للـ bug. تعليمة حفظ الـ memory اتعالجت، لكنها ممكن ما تتنفذش.
 
-في نهاية كل query loop كامل، fork agent (نسخة من الـ agent بتشترك معاه في نفس الـ context) بيشترك مع الـ parent في الـ prompt cache، وبيحلل الرسائل الأخيرة ويكتب أي memories الـ agent الرئيسي فوّتها. ولما الـ agent الرئيسي يكون كتب memories فعلًا في نطاق الـ turns الحالي، الـ extraction agent بيتخطى النطاق ده. والـ extraction agent عنده tool budget محدود: tools للقراءة بس، زائد صلاحية كتابة على مسارات مجلد الـ memory بس. والـ prompt الخاص به بيوجّهه لاستراتيجية من 2 turns: الـ turn الأول يقرأ بالتوازي، والـ turn التاني يكتب بالتوازي.
+في نهاية كل query loop كامل، fork agent بيشترك مع الـ parent في الـ prompt cache، وبيحلل الرسائل الأخيرة ويكتب أي memories الـ agent الرئيسي فوّتها. ولما الـ agent الرئيسي يكون كتب memories فعلًا في نطاق الـ turns الحالي، الـ extraction agent بيتخطى النطاق ده. والـ extraction agent عنده tool budget محدود: tools للقراءة بس، زائد صلاحية كتابة على مسارات مجلد الـ memory بس. والـ prompt الخاص به بيوجّهه لاستراتيجية من 2 turns: الـ turn الأول يقرأ بالتوازي، والـ turn التاني يكتب بالتوازي.
 
 التفاعل بينهم تعاوني، مش تنافسي. الـ prompt الخاص بالـ agent الرئيسي دائمًا فيه تعليمات الحفظ الكاملة. لما الـ agent الرئيسي يحفظ، الـ background agent بيتنحى. ولما ما يحفظش، الـ background agent بيلتقط الفجوة. الـ pattern ده، مسار أساسي ومعاه شبكة أمان في الخلفية، بيخلي التقاط الـ memory أكثر موثوقية من غير ما يثقّل على التفاعل الأساسي. وأي واحد منهم لوحده ماكانش هيكفي.
 

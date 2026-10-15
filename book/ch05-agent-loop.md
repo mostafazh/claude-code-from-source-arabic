@@ -4,7 +4,7 @@
 
 الفصل 4 وضّح إزاي الـ API layer بيحوّل الإعدادات لـ streaming HTTP requests: إزاي الـ client بيتبني، وإزاي الـ system prompts بتتجمّع، وإزاي الـ responses بتوصل على شكل server-sent events. الطبقة دي بتتعامل مع *الميكانيكا* الخاصة بالكلام مع الـ model. لكن API call واحد مش agent. الـ agent هو loop: استدعي الـ model، نفّذ الـ tools، رجّع له النتائج، واستدعي الـ model تاني، لحد ما الشغل يخلص.
 
-كل نظام ليه مركز ثقل. في الـ database، هو الـ storage engine. في الـ compiler، هو الـ intermediate representation. وفي Claude Code، هو ملف `query.ts`: ملف واحد من 1,730 سطر فيه الـ async generator (function بترجّع قيمها واحدة واحدة بشكل asynchronous) اللي بيشغّل كل تفاعل، من أول ضغطة مفتاح في الـ REPL لحد آخر tool call في تشغيل headless (من غير UI) بالـ flag `--print`.
+كل نظام ليه مركز ثقل. في الـ database، هو الـ storage engine. في الـ compiler، هو الـ intermediate representation. وفي Claude Code، هو ملف `query.ts`: ملف واحد من 1,730 سطر فيه الـ async generator اللي بيشغّل كل تفاعل، من أول ضغطة مفتاح في الـ REPL لحد آخر tool call في تشغيل headless بالـ flag `--print`.
 
 ودي مش مبالغة. فيه code path واحد بالضبط هو اللي بيكلم الـ model، وينفّذ الـ tools، ويدير الـ context، ويتعافى من الأخطاء، ويقرر يقف إمتى. الـ code path ده هو الـ function `query()`. الـ REPL بيستدعيها. والـ SDK بيستدعيها. والـ sub-agents بتستدعيها. والـ headless runner بيستدعيها. لو بتستخدم Claude Code، فإنت داخل `query()`.
 
@@ -23,7 +23,7 @@
 async function* agentLoop(params: LoopParams): AsyncGenerator<Message | Event, TerminalReason>
 ```
 
-الـ signature الفعلي بيعمل yield لكذا نوع من الرسائل والـ events، وبيرجّع discriminated union (type بيجمع كذا حالة، وكل حالة ليها علامة بتميزها) بيسجّل ليه الـ loop وقف.
+الـ signature الفعلي بيعمل yield لكذا نوع من الرسائل والـ events، وبيرجّع discriminated union بيسجّل ليه الـ loop وقف.
 
 3 أسباب، بترتيب الأهمية.
 
@@ -33,7 +33,7 @@ async function* agentLoop(params: LoopParams): AsyncGenerator<Message | Event, T
 
 **الـ Composability عن طريق `yield*`.** الـ function الخارجية `query()` بتفوّض لـ `queryLoop()` عن طريق `yield*`، واللي بيمرّر كل قيمة بتتعمل لها yield والـ return النهائي من غير ما حد يحس بالفرق. الـ sub-generators زي `handleStopHooks()` بتستخدم نفس الـ pattern. وده بيعمل chain of responsibility نضيفة من غير callbacks، ومن غير promises ملفوفة في promises، ومن غير boilerplate لتمرير الـ events.
 
-الاختيار ده ليه ثمن: الـ async generators في JavaScript ماينفعش "ترجّعها للخلف" ولا تعمل لها fork. لكن الـ agent loop مش محتاج أي حاجة من الاتنين. هو state machine (مجموعة حالات محددة وانتقالات بينها) بيتحرك للأمام بس.
+الاختيار ده ليه ثمن: الـ async generators في JavaScript ماينفعش "ترجّعها للخلف" ولا تعمل لها fork. لكن الـ agent loop مش محتاج أي حاجة من الاتنين. هو state machine بيتحرك للأمام بس.
 
 وفيه نقطة دقيقة كمان: الـ syntax `function*` بتخلّي الـ function *lazy*. جسم الـ function مش بيتنفذ غير عند أول استدعاء لـ `.next()`. وده معناه إن `query()` بترجّع فورًا: كل التهيئة التقيلة (الـ config snapshot، والـ memory prefetch، والـ budget tracker) بتحصل بس لما المستهلك يبدأ يسحب القيم. وفي الـ REPL، ده معناه إن الـ React rendering pipeline بيكون جاهز قبل ما أول سطر في الـ loop يتنفذ.
 
@@ -61,9 +61,9 @@ type LoopParams = {
 
 - **`querySource`**: string discriminant زي `'repl_main_thread'` أو `'sdk'` أو `'agent:xyz'` أو `'compact'` أو `'session_memory'`. شروط كثيرة بتتفرّع بناءً عليه. الـ compact agent بيستخدم `querySource: 'compact'` عشان الـ blocking limit guard ما يعملش deadlock (الـ compact agent لازم يشتغل عشان *يقلّل* عدد الـ tokens).
 
-- **`taskBudget`**: الـ task budget على مستوى الـ API (`output_config.task_budget`). وده مختلف عن ميزة الـ auto-continue token budget اللي بتتطلب بـ `+500k`. قيمة `total` هي ميزانية الـ agentic turn كله، وقيمة `remaining` بتتحسب في كل iteration من استهلاك الـ API التراكمي، وبتتعدّل لما تعدّي حدود الـ compaction (ضغط المحادثة عشان تفضل داخل الـ context window).
+- **`taskBudget`**: الـ task budget على مستوى الـ API (`output_config.task_budget`). وده مختلف عن ميزة الـ auto-continue token budget اللي بتتطلب بـ `+500k`. قيمة `total` هي ميزانية الـ agentic turn كله، وقيمة `remaining` بتتحسب في كل iteration من استهلاك الـ API التراكمي، وبتتعدّل لما تعدّي حدود الـ compaction.
 
-- **`deps`**: dependency injection (الـ function بتاخد اللي محتاجاه كـ parameters بدل ما تجيبه بنفسها) اختياري. الافتراضي هو `productionDeps()`. ودي نقطة الوصل اللي الـ tests بتحقن منها model calls وهمية، و compaction وهمي، و UUIDs من نوع deterministic (نفس المدخلات بتدّي نفس المخرجات كل مرة).
+- **`deps`**: dependency injection اختياري. الافتراضي هو `productionDeps()`. ودي نقطة الوصل اللي الـ tests بتحقن منها model calls وهمية، و compaction وهمي، و UUIDs من نوع deterministic.
 
 - **`canUseTool`**: function بترجّع هل tool معينة مسموح بيها ولا لأ. ودي طبقة الصلاحيات: بتتحقق من إعدادات الثقة، وقرارات الـ hooks، والـ permission mode الحالي.
 
@@ -219,7 +219,7 @@ graph TD
 
 ### الطبقة 3: الـ Context Collapse
 
-الـ context collapse (طيّ أجزاء من المحادثة من غير حذفها) بيستبدل أجزاء من المحادثة بملخصات. بيشتغل قبل الـ auto-compact، والترتيب ده مقصود: لو الـ collapse قلّل الـ context لتحت الـ auto-compact threshold، الـ auto-compact بيبقى no-op. وده بيحافظ على context تفصيلي بدل ما يستبدل كل حاجة بملخص واحد كبير.
+الـ context collapse بيستبدل أجزاء من المحادثة بملخصات. بيشتغل قبل الـ auto-compact، والترتيب ده مقصود: لو الـ collapse قلّل الـ context لتحت الـ auto-compact threshold، الـ auto-compact بيبقى no-op. وده بيحافظ على context تفصيلي بدل ما يستبدل كل حاجة بملخص واحد كبير.
 
 ### الطبقة 4: الـ Auto-Compact
 
@@ -255,7 +255,7 @@ Thresholds (relative to effectiveContextWindow):
 
 ### الـ callModel() Loop
 
-الـ API call بيحصل داخل loop من نوع `while(attemptWithFallback)` بيتيح الـ model fallback (خطة بديلة لما الأساسية تفشل):
+الـ API call بيحصل داخل loop من نوع `while(attemptWithFallback)` بيتيح الـ model fallback:
 
 ```typescript
 let attemptWithFallback = true
@@ -457,7 +457,7 @@ graph TD
 
 الـ type `QueryDeps` ضيّق عن قصد: 4 dependencies، مش 40:
 
-4 dependencies بتتحقن: الـ model caller، والـ compactor، والـ microcompactor، و UUID generator. الـ tests بتمرّر `deps` في الـ loop params عشان تحقن fakes مباشرة. واستخدام `typeof fn` في تعريفات الـ types بيخلّي الـ signatures متزامنة تلقائيًا. وجنب الـ object `State` اللي هو mutable والـ type `QueryDeps` اللي بيتحقن، فيه type `QueryConfig` من نوع immutable بيتاخد له snapshot (نسخة مجمّدة في لحظة معينة) مرة واحدة عند دخول `query()`: الـ feature flags، والـ session state، والـ environment variables بتتلقط مرة واحدة وعمرها ما بتتقري تاني. والتقسيم الثلاثي ده (mutable state، و immutable config، و injectable deps) بيخلّي الـ loop قابل للاختبار، وبيخلّي الـ refactor المستقبلي لـ pure reducer على شكل `step(state, event, config)` سهل.
+4 dependencies بتتحقن: الـ model caller، والـ compactor، والـ microcompactor، و UUID generator. الـ tests بتمرّر `deps` في الـ loop params عشان تحقن fakes مباشرة. واستخدام `typeof fn` في تعريفات الـ types بيخلّي الـ signatures متزامنة تلقائيًا. وجنب الـ object `State` اللي هو mutable والـ type `QueryDeps` اللي بيتحقن، فيه type `QueryConfig` من نوع immutable بيتاخد له snapshot مرة واحدة عند دخول `query()`: الـ feature flags، والـ session state، والـ environment variables بتتلقط مرة واحدة وعمرها ما بتتقري تاني. والتقسيم الثلاثي ده (mutable state، و immutable config، و injectable deps) بيخلّي الـ loop قابل للاختبار، وبيخلّي الـ refactor المستقبلي لـ pure reducer على شكل `step(state, event, config)` سهل.
 
 ---
 

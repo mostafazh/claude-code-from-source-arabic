@@ -14,120 +14,120 @@
 
 ---
 
-لما Anthropic نشرت Claude Code على npm، ملفات الـ source maps اللي امتدادها `.js.map` كان فيها field اسمه `sourcesContent` بيحتوي على كود TypeScript الأصلي بالكامل. الكتاب ده نتيجة دراسة الـ architecture دي. استخلصنا منها الـ patterns والـ trade-offs (مفاضلة: بتكسب حاجة وبتدفع ثمنها في حاجة تانية) وقرارات التصميم، وصغناها في سرد تقني يقدر أي مهندس يتعلم منه.
+لما Anthropic نشرت Claude Code على npm، ملفات الـ source maps اللي امتدادها `.js.map` كان فيها field اسمه `sourcesContent` بيحتوي على كود TypeScript الأصلي بالكامل. الكتاب ده نتيجة دراسة الـ architecture دي؛ استخلصنا منها أهم أنماط التصميم (Patterns)، والمفاضلات الهندسية (Trade-offs)، وقرارات البنية المعمارية، وصغناها في سرد تقني يقدر أي مهندس يتعلم منه ويستفيد من خبراته العملية.
 
 **18 فصل موزعين على 7 أجزاء.** ما يعادل ~400 صفحة مطبوعة.
 
-كل فصل مكتوب على أكثر من مستوى من العمق: سرد متسلسل للقادة التقنيين، وأقسام متعمقة للمهندسين اللي بينفذوا بنفسهم، وخاتمة بعنوان **"طبّق ده"** بتستخلص patterns تقدر تاخدها وتستخدمها في أنظمتك. الرسومات التوضيحية مكتوبة بـ [Mermaid](https://mermaid.js.org/) وبتظهر على GitHub مباشرة.
+كل فصل مكتوب على أكثر من مستوى من العمق: سرد متسلسل للقادة التقنيين، وأقسام متعمقة للمهندسين اللي بينفذوا بنفسهم، وخاتمة بعنوان **"طبّق ده"** بتستخلص patterns عملية تقدر تاخدها وتستخدمها في أنظمتك ومشاريعك. الرسومات التوضيحية مكتوبة بـ [Mermaid](https://mermaid.js.org/) وبتظهر على GitHub مباشرة.
 
 ---
 
 ## الكتاب ده لمين
 
-- **مهندسين senior بيبنوا أنظمة agentic** (يعني الـ model هو اللي بيقرر الخطوات وقت التشغيل) — خد الـ patterns واستخدمها عندك، وافهم الـ trade-offs، ونفّذها في الـ stack الخاص بيك
-- **القادة التقنيين اللي بيقيّموا architectures** — تقدر تتابع السرد من غير ما تقرأ كل code block
-- **أي حد عنده فضول يعرف أدوات الـ AI اللي في الـ production بتشتغل إزاي فعلًا** من الداخل
+- **مهندسين Senior بيبنوا أنظمة ذكية ذاتية التصرف (Agentic Systems)** — تقدر تاخد الـ patterns دي وتستخدمها في مشاريعك، وتفهم الـ trade-offs وراء كل قرار، وتنفذها في الـ tech stack بتاعك.
+- **القادة التقنيين ومدراء الهندسة (Tech Leads & Engineering Managers)** — تقدر تتابع السرد المعماري والقرارات الهندسية من غير ما تحتاج تقرأ كل سطر كود.
+- **أي مهندس برمجيات حابب يعرف أدوات الـ AI في الـ production بتشتغل إزاي من جوه وبكفاءة عالية.**
 
 ---
 
 ## فهرس المحتويات
 
 ### الجزء I: الأساسيات
-*قبل ما الـ agent يقدر يفكر، لازم الـ process تكون موجودة أصلًا.*
+*قبل ما الـ agent يقدر يفكر، لازم الـ process تكون قايمة وجاهزة للشغل أصلاً.*
 
 | # | الفصل | هتتعلم إيه |
 |---|---------|-------------------|
-| 1 | [الـ Architecture الخاصة بالـ AI Agent](./book/ch01-architecture.md) | الـ 6 abstractions الأساسية، والـ data flow، ونظام الصلاحيات، ونظام الـ build |
-| 2 | [بداية سريعة — الـ Bootstrap Pipeline](./book/ch02-bootstrap.md) | التهيئة على 5 مراحل، والـ module-level I/O parallelism، والـ trust boundary |
-| 3 | [الـ State — الـ Two-Tier Architecture](./book/ch03-state.md) | الـ bootstrap singleton، والـ AppState store، والـ sticky latches، وتتبّع التكلفة |
-| 4 | [الكلام مع Claude — الـ API Layer](./book/ch04-api-layer.md) | الـ multi-provider client، والـ prompt cache، والـ streaming، والـ error recovery |
+| 1 | [الـ Architecture الخاصة بالـ AI Agent](./book/ch01-architecture.md) | المفاهيم الأساسية الـ 6، ومسار البيانات (Data Flow)، ونظام الصلاحيات، وآلية الـ Build |
+| 2 | [بداية سريعة — الـ Bootstrap Pipeline](./book/ch02-bootstrap.md) | التهيئة على 5 مراحل، والـ Parallel I/O، وحدود الثقة والأمان (Trust Boundary) |
+| 3 | [الـ State — الـ Two-Tier Architecture](./book/ch03-state.md) | الـ Bootstrap Singleton، والـ AppState Store، والـ Sticky Latches، وتتبّع التكلفة |
+| 4 | [الكلام مع Claude — الـ API Layer](./book/ch04-api-layer.md) | عميل الـ Multi-Provider، والـ Prompt Cache، والـ Streaming، والتعافي من الأخطاء |
 
 ### الجزء II: الـ Core Loop
-*القلب النابض للـ agent: اعمل stream، نفّذ، راقب النتيجة، وكرّر.*
+*القلب النابض للـ agent: اعمل Stream، نفّذ، راقب النتيجة، وكرّر.*
 
 | # | الفصل | هتتعلم إيه |
 |---|---------|-------------------|
-| 5 | [الـ Agent Loop](./book/ch05-agent-loop.md) | نظرة متعمقة في ملف query.ts، وضغط على 4 طبقات، والـ error recovery، والـ token budgets |
-| 6 | [الـ Tools — من التعريف للتنفيذ](./book/ch06-tools.md) | الـ Tool interface، والـ pipeline المكوّن من 14 خطوة، ونظام الصلاحيات |
-| 7 | [تنفيذ الـ Tools بشكل Concurrent](./book/ch07-concurrency.md) | الـ partition algorithm، والـ streaming executor، والـ speculative execution |
+| 5 | [الـ Agent Loop](./book/ch05-agent-loop.md) | نظرة متعمقة في ملف query.ts، وضغط السياق على 4 طبقات، ومعالجة الأخطاء، وحصص الـ Tokens |
+| 6 | [الـ Tools — من التعريف للتنفيذ](./book/ch06-tools.md) | واجهة الـ Tool Interface، ومسار التنفيذ المكوّن من 14 خطوة، ونظام فحص الصلاحيات |
+| 7 | [تنفيذ الـ Tools بشكل Concurrent](./book/ch07-concurrency.md) | خوارزمية التقسيم (Partitioning)، والـ Streaming Executor، والتنفيذ التوقعي (Speculative Execution) |
 
 ### الجزء III: الـ Multi-Agent Orchestration
-*الـ agent الواحد قوي. أما agents كثيرة بتشتغل مع بعض فدي نقلة نوعية.*
+*الـ agent الواحد قوي، لكن تناغم عدة وكلاء ذكاء اصطناعي مع بعض بيعمل نقلة نوعية.*
 
 | # | الفصل | هتتعلم إيه |
 |---|---------|-------------------|
-| 8 | [عمل Spawn للـ Sub-Agents](./book/ch08-sub-agents.md) | الـ AgentTool، والـ lifecycle الخاص بـ runAgent المكوّن من 15 خطوة، والـ built-in agent types |
-| 9 | [الـ Fork Agents والـ Prompt Cache](./book/ch09-fork-agents.md) | حيلة الـ byte-identical prefix، ومشاركة الـ cache، وتحسين التكلفة |
-| 10 | [الـ Tasks والتنسيق والـ Swarms](./book/ch10-coordination.md) | الـ Task state machine، والـ coordinator mode، والـ swarm messaging |
+| 8 | [عمل Spawn للـ Sub-Agents](./book/ch08-sub-agents.md) | أداة AgentTool، ودورة حياة runAgent المكونة من 15 خطوة، وأنواع الـ Agents المدمجة |
+| 9 | [الـ Fork Agents والـ Prompt Cache](./book/ch09-fork-agents.md) | حيلة الـ Byte-identical Prefix، ومشاركة الـ Cache، وتوفير التكلفة |
+| 10 | [الـ Tasks والتنسيق والـ Swarms](./book/ch10-coordination.md) | آلة الحالات (State Machine) للـ Tasks، ووضع التنسيق، ورسائل الـ Swarm |
 
-### الجزء IV: الحفظ الدائم والذكاء
-*الـ agent اللي من غير memory هيفضل يكرر نفس الأخطاء للأبد.*
-
-| # | الفصل | هتتعلم إيه |
-|---|---------|-------------------|
-| 11 | [الـ Memory — التعلّم من محادثة للتانية](./book/ch11-memory.md) | الـ file-based memory، وتصنيف من 4 أنواع، والـ LLM recall، والـ staleness |
-| 12 | [قابلية التوسعة — الـ Skills والـ Hooks](./book/ch12-extensibility.md) | تحميل الـ skills على مرحلتين، والـ lifecycle hooks، والـ snapshot security |
-
-### الجزء V: الـ Interface
-*كل حاجة المستخدم بيشوفها بتعدّي من الطبقة دي.*
+### الجزء IV: الحفظ الدائم والذاكرة الذكية
+*الـ agent اللي من غير memory هيفضل يكرر نفس الأخطاء كل مرة.*
 
 | # | الفصل | هتتعلم إيه |
 |---|---------|-------------------|
-| 13 | [الـ Terminal UI](./book/ch13-terminal-ui.md) | نسخة fork مخصصة من Ink، والـ rendering pipeline، والـ double-buffer، والـ pools |
-| 14 | [الـ Input والتفاعل](./book/ch14-input-interaction.md) | الـ key parsing، والـ keybindings، ودعم الـ chords، والـ vim mode |
+| 11 | [الـ Memory — التعلّم من محادثة للتانية](./book/ch11-memory.md) | الذاكرة المعتمدة على الملفات، وتصنيف الأنواع الـ 4، والـ LLM Recall، والتعامل مع تقادم البيانات |
+| 12 | [قابلية التوسعة — الـ Skills والـ Hooks](./book/ch12-extensibility.md) | تحميل الـ Skills على مرحلتين، ونقاط الاعتراض (Lifecycle Hooks)، وأمان الـ Snapshots |
 
-### الجزء VI: الاتصال
-*الـ agent بيوصل لأبعد من localhost.*
-
-| # | الفصل | هتتعلم إيه |
-|---|---------|-------------------|
-| 15 | [MCP — البروتوكول الموحّد للـ Tools](./book/ch15-mcp.md) | 8 transports، والـ OAuth الخاص بـ MCP، والـ tool wrapping |
-| 16 | [التحكم عن بُعد والتنفيذ على الـ Cloud](./book/ch16-remote.md) | الـ Bridge v1/v2، والـ CCR، والـ upstream proxy |
-
-### الجزء VII: هندسة الأداء
-*إننا نخلّي كل ده سريع لدرجة إن الإنسان مش بيحس بالآلة اللي شغالة وراه.*
+### الجزء V: واجهة المستخدم (The Interface)
+*كل حاجة بيشوفها المطور بتعدّي من الطبقة دي.*
 
 | # | الفصل | هتتعلم إيه |
 |---|---------|-------------------|
-| 17 | [الأداء — كل ملي ثانية وكل Token بيفرقوا](./book/ch17-performance.md) | بدء التشغيل، والـ context window، والـ prompt cache، والـ rendering، والبحث |
-| 18 | [الخاتمة — اتعلمنا إيه](./book/ch18-epilogue.md) | الرهانات الـ 5 في الـ architecture، وإيه اللي ينفع يتنقل لأنظمة تانية، والـ agents رايحة على فين |
+| 13 | [الـ Terminal UI](./book/ch13-terminal-ui.md) | نسخة Fork مخصصة وسريعة من Ink، ومسار الـ Rendering، والـ Double-buffer |
+| 14 | [الـ Input والتفاعل](./book/ch14-input-interaction.md) | معالجة ضغطات المفاتيح (Key Parsing)، والـ Keybindings، ودعم الـ Chords، ووضع Vim |
+
+### الجزء VI: الاتصال بالعالم الخارجي
+*الـ agent بيوصل لأبعد من حدود جهازك وlocalhost.*
+
+| # | الفصل | هتتعلم إيه |
+|---|---------|-------------------|
+| 15 | [MCP — البروتوكول الموحّد للـ Tools](./book/ch15-mcp.md) | بروتوكول Model Context Protocol، وأنواع الـ Transports الـ 8، وتغليف الأدوات |
+| 16 | [التحكم عن بُعد والتنفيذ على الـ Cloud](./book/ch16-remote.md) | الـ Bridge v1/v2، والـ CCR، والـ Upstream Proxy |
+
+### الجزء VII: هندسة الأداء العالي
+*نخلّي كل المنظومة سريعة لدرجة إن المطور يحس بالاستجابة الفورية من غير أي تأخير.*
+
+| # | الفصل | هتتعلم إيه |
+|---|---------|-------------------|
+| 17 | [الأداء — كل ملي ثانية وكل Token بيفرقوا](./book/ch17-performance.md) | تحسين زمن بدء التشغيل، وإدارة الـ Context Window، وتسريع الـ Rendering والبحث |
+| 18 | [الخاتمة — اتعلمنا إيه للمستقبل](./book/ch18-epilogue.md) | الرهانات المعمارية الـ 5، والأنماط القابلة للنقل لمشاريعك، ومستقبل الـ Coding Agents |
 
 ---
 
-## الـ 10 Patterns اللي بتخلّي كل ده يشتغل
+## أهم 10 أنماط معمارية (Patterns) بتخلّي النظام يشتغل بكفاءة
 
-لو مش هتقرأ غير حاجة واحدة:
+لو عايز تطلع بأهم الخلاصة العملية المركزة:
 
-1. **الـ AsyncGenerator كـ agent loop** — بيعمل yield لـ Messages، وبيرجّع Terminal كـ typed return، والـ backpressure (إن المستهلك هو اللي بيتحكم في سرعة المنتج) والإلغاء بييجوا معاه تلقائيًا
-2. **الـ Speculative tool execution** — ابدأ تشغيل الـ tools اللي هي read-only أثناء الـ streaming الخاص بالـ model، قبل ما الـ response يكتمل
-3. **الـ Concurrent-safe batching** — قسّم الـ tools حسب الأمان، شغّل الـ reads بالتوازي، ونفّذ الـ writes بالتتابع
-4. **الـ Fork agents عشان مشاركة الـ cache** — الـ children اللي شغالة بالتوازي بتشترك في byte-identical prompt prefixes، وده بيوفّر ~95% من الـ input tokens
-5. **ضغط الـ context على 4 طبقات** — snip، microcompact، collapse، autocompact — وكل طبقة أخف من اللي بعدها
-6. **الـ File-based memory مع LLM recall** — فيه side-query على Sonnet بيختار الـ memories المرتبطة بالموضوع، مش keyword matching
-7. **تحميل الـ skills على مرحلتين** — الـ frontmatter بس عند بدء التشغيل، والمحتوى الكامل عند الاستدعاء
-8. **الـ Sticky latches عشان ثبات الـ cache** — أول ما beta header يتبعت، مش بيتشال أبدًا طول الـ session
-9. **الـ Slot reservation** — الـ output cap (الحد الأقصى لعدد الـ output tokens) الافتراضي 8K، وبيترفع لـ 64K لما الـ response يوصل للحد (وده بيوفّر context في 99% من الـ requests)
-10. **الـ Hook config snapshot** — جمّده عند بدء التشغيل عشان تمنع الـ injection attacks وقت التشغيل
+1. **الـ AsyncGenerator كـ Agent Loop** — بيعمل yield لـ Messages، وبيرجّع Terminal كـ typed return، وإدارة الضغط العكسي (Backpressure) والإلغاء النظيف بتشتغل معاه تلقائيًا.
+2. **التنفيذ التوقعي للأدوات (Speculative Tool Execution)** — ابدأ تشغيل الأدوات الآمنة للقراءة (Read-only) بالتوازي أثناء الـ streaming الخاص بالـ model قبل ما الـ response يكتمل بالكامل.
+3. **تقسيم الأدوات والتنفيذ المتوازي الآمن (Concurrent-Safe Batching)** — افصل الـ tools حسب مستوى الأمان؛ شغّل عمليات القراءة (Reads) بالتوازي، ونفّذ التعديلات (Writes) بالتتابع.
+4. **الـ Fork Agents لمشاركة الـ Cache** — الوكلاء الفرعيين اللي شغالين بالتوازي بيشتركوا في نفس الـ prompt prefix بدقة البايت (Byte-identical)، وده بيوفّر حوالي ~95% من تكلفة الـ input tokens.
+5. **ضغط السياق على 4 مستويات متدرجة** — مسار ضغط ذكي يبدأ بـ snip، ثم microcompact، ثم collapse، وينتهي بـ autocompact حسب الحاجة؛ وكل طبقة أخف وأسرع من اللي بعدها.
+6. **الذاكرة المعتمدة على الملفات مع الـ LLM Recall** — استدعاء ذكي خفيف وسريع (Side-query على Sonnet) لاختيار الذكريات والملاحظات المرتبطة بالسياق الحالي، بدل الاعتماد على مطابقة الكلمات المفتاحية العادية.
+7. **تحميل الـ Skills على مرحلتين (Two-Phase Loading)** — قراءة الـ Frontmatter فقط لحظة بدء التشغيل، وتحميل المحتوى والتعليمات الكاملة عند الاستدعاء الفعلي.
+8. **الـ Sticky Latches لضمان ثبات الـ Cache** — بمجرد إرسال Beta Header معين، بيفضل ثابت طول الـ session ومستحيل يتلغي، وده بيضمن بقاء الـ cache شغال بدون تكسير.
+9. **حجز مساحات الـ Tokens بذكاء (Slot Reservation)** — الحد الأقصى الافتراضي لمخرجات الـ tokens بيكون 8K، ومش بيترفع لـ 64K إلا لو الـ response وصل فعلاً للحد الأقصى (وده بيوفّر context كبير في 99% من الطلبات).
+10. **تجميد إعدادات الـ Hooks في Snapshot** — احتفظ بنسخة مجمّدة وغير قابلة للتعديل عند الإقلاع، علشان تمنع أي محاولات حقن أو تعديل غير مصرح به وقت التشغيل (Runtime Injection Attacks).
 
 ---
 
 ## الكتاب ده اتعمل إزاي
 
-الـ source اتستخرج من الـ source maps الموجودة على npm. وحلّلت 36 AI agents حوالي 2,000 ملف TypeScript على 4 مراحل:
+تم استخراج الكود من ملفات الـ source maps المرفقة بحزمة npm. وقام 36 وكيل ذكاء اصطناعي (AI Agents) بدراسة وتحليل حوالي 2,000 ملف TypeScript عبر 4 مراحل هندسية:
 
-1. **الاستكشاف**: 6 agents شغالة بالتوازي قرأت كل ملف في الـ source tree
-2. **التحليل**: 12 agents كتبت 494KB من التوثيق التقني الخام
-3. **الكتابة**: 15 agents أعادت كتابة كل حاجة من الصفر في شكل فصول سردية
-4. **المراجعة والتنقيح**: 3 مراجعين تحريريين كتبوا 900 سطر من الملاحظات، و3 revision agents طبّقت كل التصحيحات
+1. **الاستكشاف**: 6 وكلاء شغالين بالتوازي فحصوا كل ملف في شجرة المشروع (Source Tree).
+2. **التحليل المعماري**: 12 وكيلاً كتبوا ما يزيد عن 494KB من التوثيق التقني الخام.
+3. **الصياغة والتأليف**: 15 وكيلاً صاغوا الفصول في سرد تقني متماسك وممتع.
+4. **المراجعة والتدقيق التحريري**: مراجعون تقنيون سجلوا ملاحظات دقيقة وتم تطبيق التصحيحات لضمان دقة كل فكرة ومعمارية.
 
-العملية كلها، من استخراج الـ source لحد الكتاب النهائي بعد التنقيح، أخدت حوالي 6 ساعات.
+العملية كلها، من تحليل الـ source وحتى إخراج الكتاب بشكله النهائي المنقح، استغرقت حوالي 6 ساعات.
 
 ---
 
 ## إخلاء مسؤولية
 
-**الـ repository ده مفيهوش أي source code من Claude Code.** كل الـ code blocks عبارة عن pseudocode أصلي بأسماء متغيرات مختلفة، مكتوب عشان يوضّح الـ architectural patterns. ومفيش فيه أي نص prompt محمي بحقوق ملكية، ولا internal constants، ولا الـ implementation الحرفي لأي function. المشروع ده موجود لأغراض تعليمية بحتة: إنه يساعد المهندسين يفهموا الـ design patterns اللي ورا الـ AI coding agents اللي شغالة في الـ production.
+**المستودع ده تعليمي 100% ولا يحتوي على أي كود مقتبس أو منقول بحقوق ملكية من Claude Code.** جميع كتل الأكواد (Code Blocks) المعروضة عبارة عن كود افتراضي وشبه كود (Pseudocode) أصلي مكتوب بأسماء وهياكل مستقلة تماماً لغرض توضيح الأنماط المعمارية والمفاهيم الهندسية فقط. لا يحتوي المستودع على أي نصوص Prompts سرية أو ثوابت داخلية محمية أو كود تنفيذي لأي دالة تجارية. الهدف الوحيد هو مساعدة المطورين على استيعاب هندسة برمجيات وكلاء الذكاء الاصطناعي العاملة في البيئات الإنتاجية.
 
-غلاف "NO'REILLY" محاكاة ساخرة (parody/meme) لغرض التوضيح فقط. المشروع ده مش مرتبط بـ O'Reilly Media بأي شكل. والسلطعون مجرد سلطعون.
+غلاف "NO'REILLY" هو مجرد محاكاة ساخرة وتعبيرية (Parody/Meme) لغرض التوضيح؛ والمشروع غير مرتبط بدار نشر O'Reilly Media بأي شكل، والسلطعون هو مجرد سلطعون.
 
-ده تحليل مستقل. برنامج Claude Code منتج من منتجات Anthropic. والكتاب ده مش تابع لـ Anthropic، ولا معتمد منها، ولا برعايتها.
+هذا تحليل هندسي مستقل؛ وClaude Code هو منتج لشركة Anthropic، وهذا الكتاب غير تابع للشركة ولا معتمد منها رسمياً ولا برعايتها.
