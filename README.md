@@ -1,11 +1,13 @@
-# Claude Code from Source
+# Claude Code from Source (النسخة العربية)
 
 **الـ Architecture والـ Patterns والتفاصيل الداخلية للـ AI Coding Agent الخاص بـ Anthropic**
+
+> النسخة العربية من كتاب [Claude Code from Source](https://github.com/alejandrobalderas/claude-code-from-source) للمؤلف [Alejandro Balderas](https://github.com/alejandrobalderas). صُممت هذه النسخة لتوفير مرجع هندسي احترافي باللغة العربية للمطورين والمهندسين.
 
 <p align="center">
   <img src="./web/public/cover.jpg" alt="Claude Code from Source — غلاف الكتاب" width="400" />
   <br/><br/>
-  <a href="https://claude-code-from-source.com"><strong>اقرأ الكتاب على الإنترنت من claude-code-from-source.com</strong></a>
+  <a href="https://claude-code-from-source.com"><strong>اقرأ الكتاب الأصلي على الإنترنت من claude-code-from-source.com</strong></a>
 </p>
 
 ---
@@ -131,3 +133,15 @@
 غلاف "NO'REILLY" هو مجرد محاكاة ساخرة وتعبيرية (Parody/Meme) لغرض التوضيح؛ والمشروع غير مرتبط بدار نشر O'Reilly Media بأي شكل، والسلطعون هو مجرد سلطعون.
 
 هذا تحليل هندسي مستقل؛ وClaude Code هو منتج لشركة Anthropic، وهذا الكتاب غير تابع للشركة ولا معتمد منها رسمياً ولا برعايتها.
+
+---
+
+## الإسناد وحقوق الملكية الفكرية (Attribution & License)
+
+- **العمل الأصلي**: كتاب *"Claude Code from Source — Architecture, Patterns & Internals of Anthropic's AI Coding Agent"* تأليف **[Alejandro Balderas](https://github.com/alejandrobalderas)** ([المستودع الأصلي](https://github.com/alejandrobalderas/claude-code-from-source) | [الموقع الرسمي](https://claude-code-from-source.com)).
+- **الترجمة العربية**: تمت الترجمة والإعداد بواسطة **[مصطفى زاهر (Mostafa Zaher)](https://github.com/mostafazh)** ومساهمي المجتمع، بناءً على إذن صريح للمشاريع غير التجارية مع حفظ الإسناد في [Issue #3](https://github.com/alejandrobalderas/claude-code-from-source/issues/3).
+- **الترخيص (License)**: هذا العمل مترجم ومنشور بموجب رخصة المشاع الإبداعي: نسب المصنف - غير تجاري - الترخيص بالمثل 4.0 دولي ([CC BY-NC-SA 4.0](./LICENSE)).
+- **الاستخدام غير التجاري**: هذا المحتوى متاح مجاناً 100% للأغراض التعليمية وتطوير المجتمع الهندسي العربي دون أي أغراض تجارية.
+- **ترجمات شقيقة (Sister Translations)**:
+  - [الترجمة الصينية (Chinese Translation)](https://github.com/simplex86/claude-code-from-source) بواسطة [@simplex86](https://github.com/simplex86).
+
