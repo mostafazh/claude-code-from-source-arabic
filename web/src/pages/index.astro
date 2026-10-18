@@ -1,0 +1,214 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import ArchitectureExplorer from '../components/ArchitectureExplorer';
+import { parts, chapters } from '../book.config';
+
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase : rawBase + '/';
+---
+
+<BaseLayout
+  title="Claude Code من المصدر (النسخة العربية) — الـ Architecture والأنماط المعمارية"
+  description="كتاب تقني يحلل معمارية الـ AI Coding Agent الخاص بشركة Anthropic. 18 فصلاً، نحو 400 صفحة، استُخلصت من الـ source maps. خالي تماماً من أي كود تجاري محمي — يركز فقط على الأنماط الهندسية العملية."
+>
+  <Header />
+
+  <main class="max-w-4xl mx-auto px-4 md:px-8 py-12 md:py-20">
+
+    <!-- Hero -->
+    <div class="text-center mb-16">
+      <img
+        src={`${base}cover.jpg`}
+        alt="Claude Code from Source — غلاف الكتاب"
+        class="mx-auto w-64 md:w-72 rounded-lg shadow-xl mb-8 border border-[var(--color-border)] dark:border-[#333]"
+      />
+      <h1 class="text-3xl md:text-5xl font-bold font-[var(--font-arabic)] text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-6 leading-tight">
+        كتاب Claude Code من المصدر
+      </h1>
+      <p class="text-xl text-[var(--color-terracotta)] font-semibold mb-4">
+        الـ Architecture والـ Patterns والتفاصيل الداخلية لأقوى AI Coding Agent
+      </p>
+      <p class="text-base md:text-lg text-[var(--color-secondary)] dark:text-[var(--color-muted)] max-w-2xl mx-auto leading-relaxed mb-6 font-[var(--font-arabic)]">
+        لما Anthropic نشرت أداة Claude Code على npm، نزلت ملفات الـ source maps معاها. الكتاب ده بيستخلص القرارات المعمارية والمفاضلات الهندسية (Trade-offs) والأنماط القابلة للنقل لمشاريعك في
+        <span class="text-[var(--color-terracotta)] font-bold">18 فصلاً هندسياً متعمقاً</span> باللغة العربية.
+      </p>
+
+      <!-- Prominent Attribution Banner -->
+      <div class="max-w-2xl mx-auto p-4 mb-8 rounded-lg bg-[var(--color-beige)]/60 dark:bg-[var(--color-dark-surface)]/60 border border-[var(--color-border)] dark:border-[#333] text-sm text-[var(--color-secondary)] dark:text-[var(--color-muted)] leading-relaxed">
+        <p class="font-medium text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-1">
+          📌 إسناد العمل الأصلي (Original Attribution):
+        </p>
+        <p>
+          العمل الأصلي تأليف المهندس <strong><a href="https://github.com/alejandrobalderas" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline">Alejandro Balderas</a></strong>، ومتوفر بالإنجليزية على موقع <a href="https://claude-code-from-source.com" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline font-medium">claude-code-from-source.com</a> و<a href="https://github.com/alejandrobalderas/claude-code-from-source" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline">مستودع GitHub الأصلي</a>. تمت هذه الترجمة العربية المستقلة بموجب إذن صريح للمشاريع التعليمية غير التجارية.
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-center gap-4">
+        <a
+          href={`${base}${chapters[0].slug}/`}
+          class="inline-flex items-center gap-2 px-8 py-3.5 bg-[var(--color-terracotta)] text-white font-semibold rounded-lg hover:opacity-90 shadow-md transition-all font-[var(--font-arabic)] text-base"
+        >
+          ابدأ قراءة الكتاب
+          <svg class="w-4 h-4 rtl:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          </svg>
+        </a>
+        <a
+          href="https://github.com/mostafazh/claude-code-from-source-arabic"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 px-6 py-3.5 border border-[var(--color-border)] dark:border-[#444] rounded-lg hover:bg-[var(--color-beige)] dark:hover:bg-[var(--color-dark-surface)] transition-all font-[var(--font-arabic)] text-base"
+        >
+          مستودع الترجمة على GitHub
+        </a>
+      </div>
+    </div>
+
+    <!-- What You'll Learn -->
+    <section class="mb-20">
+      <h2 class="text-2xl md:text-3xl font-bold font-[var(--font-arabic)] text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-8">
+        هتتعلم إيه في الكتاب ده
+      </h2>
+      <div class="grid md:grid-cols-2 gap-6">
+        {[
+          { title: 'الـ Agent Loop', text: 'إزاي الـ AsyncGenerator بيقود النظام بالكامل — بيعمل stream لمخرجات الـ LLM، وبينفذ الـ tools، وبيتعافى من الأخطاء، وبيضغط الـ Context عبر 4 طبقات متدرجة.' },
+          { title: 'تنفيذ الـ Tools بكفاءة عالية', text: 'مسار تنفيذ من 14 خطوة يبدأ من طلب الـ Model وحتى استرجاع النتيجة، مع فحص الصلاحيات، والتنفيذ التوقعي (Speculative Execution)، وتشغيل الأدوات المتوازية بأمان.' },
+          { title: 'تنسيق الـ Multi-Agent', text: 'إزاي الوكلاء الفرعيين بيشتركوا في نفس الـ Prompt Cache Prefix لتوفير حوالي 95% من تكلفة الـ tokens، مع نمط الـ Fork Agents، ووضع الـ Coordinator، وفرق الـ Swarms.' },
+          { title: 'الذاكرة بدون Database تقليدية', text: 'ذاكرة مبنية على ملفات عادية مع نظام استدعاء (Recall) ذكي مدعوم بالـ LLM. أربعة أنواع من الذكريات، وتنبيهات تقادم البيانات، وSide-query خفيف على Sonnet يغني عن الـ Vector DB.' },
+          { title: 'هندسة الأداء العالي', text: 'بدء تشغيل فوري في 240ms بفضل الـ Parallel I/O، وحجز مساحات الـ Tokens بذكاء لتوفير السياق في 99% من الطلبات، وتسريع البحث والـ Rendering.' },
+          { title: 'قابلية التوسعة والأمان', text: 'تحميل الـ Skills على مرحلتين (بيانات الـ Header عند الإقلاع، والمحتوى الكامل عند الاستدعاء)، و27 نقطة اعتراض (Lifecycle Hooks) مجمدة في Snapshot ضد هجمات الحقن.' },
+        ].map(({ title, text }) => (
+          <div class="p-6 rounded-lg border border-[var(--color-border)] dark:border-[#333] bg-[var(--color-cream)]/50 dark:bg-[var(--color-dark-surface)]/30">
+            <h3 class="font-bold text-lg text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-2 font-[var(--font-arabic)]">{title}</h3>
+            <p class="text-sm text-[var(--color-secondary)] dark:text-[var(--color-muted)] leading-relaxed font-[var(--font-arabic)]">{text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Architecture Explorer -->
+    <section class="mb-20">
+      <h2 class="text-2xl md:text-3xl font-bold font-[var(--font-arabic)] text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-3">
+        استكشف الـ Architecture
+      </h2>
+      <p class="text-sm text-[var(--color-muted)] mb-6 font-[var(--font-arabic)]">
+        ستة مفاهيم أساسية (Core Abstractions) بتشكل الهيكل العام لـ Claude Code. اسحب العقد لإعادة الترتيب، مرر الفأرة للتفاصيل، أو اضغط للانتقال للفصل.
+      </p>
+      <ArchitectureExplorer client:only="react" className="w-full" />
+    </section>
+
+    <!-- Who This Is For -->
+    <section class="mb-20">
+      <h2 class="text-2xl md:text-3xl font-bold font-[var(--font-arabic)] text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-6">
+        الكتاب ده لمين
+      </h2>
+      <div class="space-y-4 text-[var(--color-secondary)] dark:text-[var(--color-muted)] leading-relaxed font-[var(--font-arabic)]">
+        <p><strong class="text-[var(--color-charcoal)] dark:text-[var(--color-cream)]">مهندسين Senior بيبنوا أنظمة ذكية ذاتية التصرف (Agentic Systems).</strong> كل فصل بينتهي بقسم "طبّق ده" — 5 أنماط معمارية قابلة للنقل الفوري لمشاريعك مع نصائح واقعية للمفاضلات الهندسية.</p>
+        <p><strong class="text-[var(--color-charcoal)] dark:text-[var(--color-cream)]">القادة التقنيين ومدراء الهندسة (Tech Leads & Engineering Managers).</strong> تقدر تتابع السرد المعماري والقرارات الهندسية وسبب اختيار كل حل دون الحاجة للغوص في كل سطر كود تفصيلي.</p>
+        <p><strong class="text-[var(--color-charcoal)] dark:text-[var(--color-cream)]">أي مهندس برمجيات مهتم بمعرفة كيف تعمل أدوات الـ AI في بيئات الإنتاج الحقيقية.</strong> مئات الآلاف من المطورين بيستخدموا Claude Code يومياً، وهنا بنشرح إزاي المنظومة دي شغالة من الداخل بدقة.</p>
+      </div>
+    </section>
+
+    <!-- Table of Contents -->
+    <section class="mb-20">
+      <h2 class="text-2xl md:text-3xl font-bold font-[var(--font-arabic)] text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-8">
+        فهرس الفصول والمحتويات
+      </h2>
+      {parts.map((part) => {
+        const partChapters = chapters.filter(c => part.chapters.includes(c.number));
+        return (
+          <div class="mb-10 p-6 rounded-lg border border-[var(--color-border)] dark:border-[#333]">
+            <div class="flex items-baseline gap-3 mb-1">
+              <span class="text-xs font-semibold uppercase tracking-wider text-[var(--color-terracotta)] font-[var(--font-arabic)]">الجزء {part.number}</span>
+              <h3 class="text-xl font-bold text-[var(--color-charcoal)] dark:text-[var(--color-cream)] font-[var(--font-arabic)]">{part.title}</h3>
+            </div>
+            <p class="text-sm italic text-[var(--color-muted)] mb-4 font-[var(--font-arabic)]">{part.epigraph}</p>
+
+            <div class="space-y-2">
+              {partChapters.map((ch) => (
+                <a
+                  href={`${base}${ch.slug}/`}
+                  class="group flex items-start gap-3 p-3 -mx-3 rounded-lg hover:bg-[var(--color-beige)] dark:hover:bg-[var(--color-dark-surface)] transition-colors"
+                >
+                  <span class="text-sm font-mono text-[var(--color-muted)] mt-0.5 w-6 shrink-0 text-start">{ch.number}</span>
+                  <div>
+                    <span class="text-[var(--color-charcoal)] dark:text-[var(--color-cream)] group-hover:text-[var(--color-terracotta)] font-semibold transition-colors font-[var(--font-arabic)]">
+                      {ch.title}
+                    </span>
+                    <p class="text-sm text-[var(--color-muted)] mt-0.5 font-[var(--font-arabic)]">{ch.description}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </section>
+
+    <!-- 10 Patterns -->
+    <section class="mb-20">
+      <h2 class="text-2xl md:text-3xl font-bold font-[var(--font-arabic)] text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-3">
+        أهم 10 أنماط معمارية بتخلّي النظام يشتغل بكفاءة
+      </h2>
+      <p class="text-[var(--color-muted)] mb-6 font-[var(--font-arabic)]">لو عايز تطلع بأهم الخلاصة المركزة، دي الرهانات الهندسية اللي بنى عليها Claude Code معماريتَه:</p>
+      <div class="space-y-4">
+        {[
+          { name: 'الـ AsyncGenerator كـ Agent Loop', desc: 'بيعمل yield للـ Messages، وبيرجّع Terminal كـ typed return، مع إدارة تلقائية للضغط العكسي والإلغاء النظيف' },
+          { name: 'التنفيذ التوقعي للأدوات (Speculative Execution)', desc: 'بدء تشغيل الأدوات الآمنة للقراءة بالتوازي أثناء الـ streaming الخاص بالـ model قبل اكتمال الرد' },
+          { name: 'التنفيذ المتوازي الآمن (Concurrent-Safe Batching)', desc: 'تقسيم الـ tools حسب مستوى الأمان؛ تشغيل القراءة بالتوازي وتنفيذ التعديلات بالتتابع' },
+          { name: 'الـ Fork Agents لمشاركة الـ Cache', desc: 'الوكلاء الفرعيين بيشتركوا في نفس الـ prompt prefix بدقة البايت لتوفير ~95% من تكلفة الـ tokens' },
+          { name: 'ضغط السياق على 4 مستويات متدرجة', desc: 'مسار ضغط يبدأ بـ snip، ثم microcompact، ثم collapse، ثم autocompact' },
+          { name: 'الذاكرة المعتمدة على الملفات مع الـ LLM Recall', desc: 'استدعاء ذكي وسريع على Sonnet لاختيار الملاحظات المرتبطة بالسياق بدلاً من مطابقة الكلمات العادية' },
+          { name: 'تحميل الـ Skills على مرحلتين (Two-Phase Loading)', desc: 'قراءة الـ Frontmatter فقط عند الإقلاع، وتحميل المحتوى والتعليمات الكاملة عند الاستدعاء الفعلي' },
+          { name: 'الـ Sticky Latches لثبات الـ Cache', desc: 'بمجرد إرسال Beta Header معين يظل ثابتاً طول الجلسة لضمان استمرار عمل الـ cache دون تكسير' },
+          { name: 'حجز مساحات الـ Tokens بذكاء (Slot Reservation)', desc: 'سقف افتراضي 8K للمخرجات يرتفع لـ 64K فقط عند الحاجة الفعلية، موفراً سياقاً ثميناً في 99% من الطلبات' },
+          { name: 'تجميد إعدادات الـ Hooks في Snapshot', desc: 'تجميد الإعدادات لحظة الإقلاع لمنع أي محاولات حقن أو تعديل وقت التشغيل' },
+        ].map((p, i) => (
+          <div class="flex gap-4 items-start p-3 rounded-lg hover:bg-[var(--color-beige)]/40 dark:hover:bg-[var(--color-dark-surface)]/40">
+            <span class="text-sm font-mono text-[var(--color-terracotta)] font-bold mt-1 w-6 shrink-0 text-start">{i + 1}</span>
+            <div class="font-[var(--font-arabic)]">
+              <span class="font-bold text-[var(--color-charcoal)] dark:text-[var(--color-cream)]">{p.name}</span>
+              <span class="text-[var(--color-secondary)] dark:text-[var(--color-muted)]"> — {p.desc}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Attribution & Licensing Card -->
+    <section class="mb-12 p-6 rounded-lg border border-[var(--color-border)] dark:border-[#333] bg-[var(--color-beige)]/50 dark:bg-[var(--color-dark-surface)]/50 font-[var(--font-arabic)]">
+      <h3 class="text-lg font-bold text-[var(--color-charcoal)] dark:text-[var(--color-cream)] mb-3">
+        الإسناد وحقوق الملكية والترخيص (Attribution & License)
+      </h3>
+      <div class="space-y-3 text-sm text-[var(--color-secondary)] dark:text-[var(--color-muted)] leading-relaxed">
+        <p>
+          <strong>المستودع ده تعليمي 100% ولا يحتوي على أي كود مقتبس أو منقول بحقوق ملكية من Claude Code.</strong> جميع كتل الأكواد المعروضة عبارة عن كود افتراضي وشبه كود (Pseudocode) أصلي مكتوب بأسماء وهياكل مستقلة تماماً لغرض توضيح الأنماط المعمارية والمفاهيم الهندسية فقط.
+        </p>
+        <p>
+          <strong>العمل الأصلي:</strong> كتاب <em>"Claude Code from Source — Architecture, Patterns & Internals"</em> تأليف <a href="https://github.com/alejandrobalderas" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline font-semibold">Alejandro Balderas</a> (<a href="https://github.com/alejandrobalderas/claude-code-from-source" target="_blank" rel="noopener noreferrer" class="hover:underline">المستودع الأصلي</a> | <a href="https://claude-code-from-source.com" target="_blank" rel="noopener noreferrer" class="hover:underline">الموقع الأصلي</a>).
+        </p>
+        <p>
+          <strong>الترخيص:</strong> هذا العمل مترجم ومنشور تحت رخصة المشاع الإبداعي: نسب المصنف - غير تجاري - الترخيص بالمثل 4.0 دولي (<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline">CC BY-NC-SA 4.0</a>). الترجمة مخصصة تماماً للأغراض التعليمية وغير التجارية.
+        </p>
+        <p>
+          <strong>ترجمات شقيقة:</strong> <a href="https://github.com/simplex86/claude-code-from-source" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline">الترجمة الصينية (Chinese Translation)</a> بواسطة @simplex86.
+        </p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-sm text-[var(--color-muted)] border-t border-[var(--color-border)] dark:border-[#333] pt-8 pb-12 font-[var(--font-arabic)] space-y-2">
+      <p>
+        تحليل هندسي مستقل. هذا الكتاب غير تابع لشركة <a href="https://anthropic.com" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline">Anthropic</a> ولا معتمد منها رسمياً ولا برعايتها.
+      </p>
+      <div class="flex justify-center gap-4 text-xs mt-3">
+        <a href="https://github.com/alejandrobalderas/claude-code-from-source" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline">المستودع الأصلي (Alejandro Balderas)</a>
+        <span>•</span>
+        <a href="https://claude-code-from-source.com" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline">الموقع الأصلي</a>
+        <span>•</span>
+        <a href="https://github.com/mostafazh/claude-code-from-source-arabic" target="_blank" rel="noopener noreferrer" class="text-[var(--color-terracotta)] hover:underline">مستودع الترجمة العربية</a>
+      </div>
+    </footer>
+  </main>
+</BaseLayout>
