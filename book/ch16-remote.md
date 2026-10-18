@@ -4,7 +4,7 @@
 
 كل فصل لحد الآن كان بيفترض إن Claude Code شغال على نفس الجهاز اللي فيه الكود. الـ terminal محلي. الـ filesystem محلي. وردود الـ model بترجع stream لـ process واحدة هي اللي ماسكة الـ keyboard والـ working directory مع بعض.
 
-الافتراض ده بيتكسر أول ما تحب تتحكم في Claude Code من browser، أو تشغّله داخل container على الـ cloud، أو تعرضه كـ service على الـ LAN عندك. الـ agent محتاج طريقة يستقبل بيها التعليمات من web browser أو mobile app أو pipeline آلي. ومحتاج يمرّر الـ permission prompts لحد مش قاعد قدام الـ terminal. ومحتاج يعدّي الـ API traffic الخاص بيه في tunnel عبر infrastructure ممكن تحقن credentials (بيانات الدخول) أو تنهي الـ TLS نيابة عن الـ agent.
+الافتراض ده بيتكسر أول ما تحب تتحكم في Claude Code من browser، أو تشغّله داخل container على الـ cloud، أو تعرضه كـ service على الـ LAN عندك. الـ agent محتاج طريقة يستقبل بيها التعليمات من web browser أو mobile app أو pipeline آلي. ومحتاج يمرّر الـ permission prompts لحد مش قاعد قدام الـ terminal. ومحتاج يعدّي الـ API traffic الخاص بيه في tunnel عبر infrastructure ممكن تحقن credentials أو تنهي الـ TLS نيابة عن الـ agent.
 
 بيحل Claude Code المشكلة دي بـ 4 أنظمة، كل واحد منها بيتعامل مع topology مختلفة:
 
@@ -52,7 +52,7 @@ graph TB
 
 الـ v1 bridge هو نظام الـ remote control المبني على الـ environments. لما المطوّر يشغّل `claude remote-control`، الـ CLI بيسجّل نفسه في الـ Environments API، وبيعمل poll عشان يجيب شغل، وبيعمل spawn لـ child process لكل session.
 
-قبل التسجيل، بتتنفذ سلسلة من الـ pre-flight checks: runtime feature gate (مفتاح بيشغّل أو يقفل ميزة)، والتحقق من الـ OAuth token، وفحص سياسة الـ organization، واكتشاف الـ dead tokens (وده backoff مشترك بين الـ processes بعد 3 محاولات فاشلة متتالية بنفس الـ token المنتهي)، و proactive token refresh بيمنع فشل حوالي 9% من التسجيلات اللي كانت هتفشل من أول محاولة لولاه.
+قبل التسجيل، بتتنفذ سلسلة من الـ pre-flight checks: runtime feature gate، والتحقق من الـ OAuth token، وفحص سياسة الـ organization، واكتشاف الـ dead tokens (وده backoff مشترك بين الـ processes بعد 3 محاولات فاشلة متتالية بنفس الـ token المنتهي)، و proactive token refresh بيمنع فشل حوالي 9% من التسجيلات اللي كانت هتفشل من أول محاولة لولاه.
 
 بعد التسجيل، الـ bridge (جسر بيوصل الـ CLI المحلي بالـ web interface) بيدخل في long-poll loop. عناصر الشغل بتوصل إما كـ sessions (ومعاها field اسمه `secret` فيه الـ session tokens والـ API base URL وإعدادات الـ MCP والـ environment variables) أو كـ healthchecks. والـ bridge بيقلل رسائل الـ log من نوع "no work" (مفيش شغل) لرسالة واحدة كل 100 poll فاضي.
 
@@ -65,7 +65,7 @@ graph TB
 الـ v2 bridge بيلغي طبقة الـ Environments API بالكامل: مفيش تسجيل، ولا polling، ولا acknowledgment، ولا heartbeat، ولا deregistration. والدافع: في v1 كان الـ server محتاج يعرف إمكانيات الجهاز قبل ما يبعت له شغل. أما v2 فبيختصر الـ lifecycle في 3 خطوات:
 
 1. **إنشاء session**: `POST /v1/code/sessions` بالـ OAuth credentials.
-2. **توصيل الـ bridge**: `POST /v1/code/sessions/{id}/bridge`. بيرجّع `worker_jwt` و `api_base_url` و `worker_epoch`. كل استدعاء لـ `/bridge` بيزوّد الـ epoch (رقم بيزيد مع كل تسجيل جديد عشان يبطّل القديم). والاستدعاء ده هو نفسه التسجيل.
+2. **توصيل الـ bridge**: `POST /v1/code/sessions/{id}/bridge`. بيرجّع `worker_jwt` و `api_base_url` و `worker_epoch`. كل استدعاء لـ `/bridge` بيزوّد الـ epoch. والاستدعاء ده هو نفسه التسجيل.
 3. **فتح الـ transport**: SSE للقراءة، و `CCRClient` للكتابة.
 
 الـ transport abstraction (`ReplBridgeTransport`) بيوحّد v1 و v2 ورا interface مشتركة، فمعالجة الرسائل مش محتاجة تعرف هي بتكلم أي جيل منهم.
@@ -84,7 +84,7 @@ graph TB
 
 ## توجيه الرسائل والـ Echo Deduplication
 
-جيلي الـ bridge الاتنين بيشتركوا في `handleIngressMessage()` كـ router مركزي:
+جيلا الـ Bridge الاثنين بيشتركوا في `handleIngressMessage()` كـ router مركزي:
 
 1. يعمل parse للـ JSON، ويوحّد شكل مفاتيح رسائل الـ control.
 2. يوجّه `control_response` للـ permission handler، و `control_request` للـ request handler.
@@ -93,7 +93,7 @@ graph TB
 
 ### BoundedUUIDSet: بحث O(1) وذاكرة O(capacity)
 
-الـ bridge عنده مشكلة echo (إن الرسالة ترجع من الـ server وتتعرض مرتين): الرسائل ممكن ترجع تاني على الـ read stream، أو تتسلّم مرتين أثناء التبديل بين الـ transports. الـ class `BoundedUUIDSet` عبارة عن set محدود الحجم بنظام FIFO، ومبني على circular buffer (buffer دائري بحجم ثابت، الجديد بيكتب فوق الأقدم):
+الـ bridge عنده مشكلة echo (إن الرسالة ترجع من الـ server وتتعرض مرتين): الرسائل ممكن ترجع تاني على الـ read stream، أو تتسلّم مرتين أثناء التبديل بين الـ transports. الـ class `BoundedUUIDSet` عبارة عن set محدود الحجم بنظام FIFO، ومبني على circular buffer:
 
 ```typescript
 class BoundedUUIDSet {
@@ -114,7 +114,7 @@ class BoundedUUIDSet {
 }
 ```
 
-بيشتغل منه instances اتنين بالتوازي، سعة كل واحد 2000. البحث O(1) عن طريق الـ Set، والذاكرة O(capacity) عن طريق إزالة الأقدم من الـ circular buffer، ومن غير timers ولا TTLs. والـ control requests اللي الـ subtype الخاص بيها مش معروف بتاخد error response مش صمت، وده بيمنع الـ server إنه يفضل مستني رد مش هيوصل أبدًا.
+بيشتغل منه نسختين (Two Instances) بالتوازي، سعة كل واحد 2000. البحث O(1) عن طريق الـ Set، والذاكرة O(capacity) عن طريق إزالة الأقدم من الـ circular buffer، ومن غير timers ولا TTLs. والـ control requests اللي الـ subtype الخاص بيها مش معروف بتاخد error response مش صمت، وده بيمنع الـ server إنه يفضل مستني رد مش هيوصل أبدًا.
 
 ---
 
@@ -163,7 +163,7 @@ class BoundedUUIDSet {
 5. يعمل unlink لملف الـ token، فالـ token بقى موجود على الـ heap بس.
 6. يصدّر الـ environment variables لكل الـ subprocesses.
 
-كل خطوة من دول fail open، يعني أي خطأ بيعطّل الـ proxy بدل ما يقتل الـ session. وده الـ trade-off (مفاضلة: بتكسب حاجة وبتدفع ثمنها في حاجة تانية) الصحيح: فشل الـ proxy معناه إن بعض الـ integrations مش هتشتغل، لكن الوظائف الأساسية هتفضل متاحة.
+كل خطوة من دول fail open، يعني أي خطأ بيعطّل الـ proxy بدل ما يقتل الـ session. وده الـ trade-off الصحيح: فشل الـ proxy معناه إن بعض الـ integrations مش هتشتغل، لكن الوظائف الأساسية هتفضل متاحة.
 
 ### الـ Protobuf Hand-Encoding
 

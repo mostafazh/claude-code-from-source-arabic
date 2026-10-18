@@ -2,7 +2,7 @@
 
 ## دليل المهندس الـ senior
 
-تحسين الأداء في نظام agentic (يعني الـ model هو اللي بيقرر الخطوات وقت التشغيل) مش مشكلة واحدة. هو 5 مشاكل:
+تحسين الأداء في نظام agentic مش مشكلة واحدة. هو 5 مشاكل:
 
 1. **الـ Startup latency** -- الوقت من ضغطة المفتاح لحد أول output مفيد. المستخدمين بيسيبوا الأدوات اللي بيحسوا إنها بطيئة في التشغيل.
 2. **كفاءة الـ tokens** -- نسبة الـ context window اللي بيستهلكها محتوى مفيد مقابل الـ overhead. والـ context window هو أضيق مورد عندك.
@@ -30,7 +30,7 @@ startKeychainPrefetch();  // fires both macOS keychain reads in parallel
 
 ### الـ API Preconnection
 
-ملف `apiPreconnect.ts` بيبعت request من نوع `HEAD` لـ Anthropic API أثناء التهيئة، عشان الـ TCP+TLS handshake (من 100 لـ 200ms) يتداخل مع شغل التجهيز. في الـ interactive mode، التداخل ده ملوش حد: الاتصال بيسخن (بيتملي ويبقى جاهز) أثناء ما المستخدم بيكتب. الـ request بيتبعت بعد `applyExtraCACertsFromConfig()` و `configureGlobalAgents()` عشان الاتصال اللي سخن يستخدم إعدادات الـ transport الصحيحة.
+ملف `apiPreconnect.ts` بيبعت request من نوع `HEAD` لـ Anthropic API أثناء التهيئة، عشان الـ TCP+TLS handshake (من 100 لـ 200ms) يتداخل مع شغل التجهيز. في الـ interactive mode، التداخل ده ملوش حد: الاتصال بيسخن أثناء ما المستخدم بيكتب. الـ request بيتبعت بعد `applyExtraCACertsFromConfig()` و `configureGlobalAgents()` عشان الاتصال اللي سخن يستخدم إعدادات الـ transport الصحيحة.
 
 ### الـ Fast-Path Dispatch والـ Deferred Imports
 
@@ -58,7 +58,7 @@ startKeychainPrefetch();  // fires both macOS keychain reads in parallel
 
 ### الـ Context Window Sizing
 
-الـ window الافتراضي حجمه 200K tokens، وممكن يتوسع لـ 1M عن طريق اللاحقة `[1m]` في اسم الـ model أو عن طريق experiment treatment. لما الاستهلاك يقرّب من الحد، نظام compaction (ضغط المحادثة عشان تفضل داخل الـ context window) من 4 طبقات بيبدأ يلخّص المحتوى الأقدم بالتدريج. وعدّ الـ tokens بيعتمد على الـ field `usage` الفعلي اللي بيرجّعه الـ API، مش على تقدير من جهة الـ client. وده بيحسب حساب الـ prompt caching credits، والـ thinking tokens، والتحويلات اللي بتحصل على الـ server.
+الـ window الافتراضي حجمه 200K tokens، وممكن يتوسع لـ 1M عن طريق اللاحقة `[1m]` في اسم الـ model أو عن طريق experiment treatment. لما الاستهلاك يقرّب من الحد، نظام compaction من 4 طبقات بيبدأ يلخّص المحتوى الأقدم بالتدريج. وعدّ الـ tokens بيعتمد على الـ field `usage` الفعلي اللي بيرجّعه الـ API، مش على تقدير من جهة الـ client. وده بيحسب حساب الـ prompt caching credits، والـ thinking tokens، والتحويلات اللي بتحصل على الـ server.
 
 ---
 
@@ -88,7 +88,7 @@ graph LR
 
 الـ prompt cache الخاص بـ Anthropic بيشتغل بمطابقة الـ prefix بالضبط. لو token واحد اتغير في نص الـ prefix، كل اللي بعده بيبقى cache miss. عشان كده Claude Code بيرتّب الـ prompt كله بحيث الأجزاء الثابتة تيجي الأول والأجزاء المتغيرة تيجي الآخر.
 
-لما `shouldUseGlobalCacheScope()` بترجّع true، الـ system prompt entries اللي قبل الـ dynamic boundary بتاخد `scope: 'global'`: يعني مستخدمين اتنين شغالين بنفس إصدار Claude Code بيتشاركوا نفس الـ prefix cache. الـ global scope بيتقفل لما يكون فيه MCP tools، لأن الـ MCP schemas بتختلف من مستخدم للتاني.
+لما `shouldUseGlobalCacheScope()` بترجّع true، الـ system prompt entries اللي قبل الـ dynamic boundary بتاخد `scope: 'global'`: يعني أي مستخدمين شغالين بنفس إصدار Claude Code بيتشاركوا نفس الـ prefix cache. الـ global scope بيتقفل لما يكون فيه MCP tools، لأن الـ MCP schemas بتختلف من مستخدم للتاني.
 
 ### الـ Sticky Latch Fields
 
@@ -176,7 +176,7 @@ function buildCharBitmap(filepath: string): number {
 
 الـ class `StreamingToolExecutor` بيبدأ ينفّذ الـ tools أول ما تظهر في الـ stream، قبل ما الـ response كله يكتمل. الـ tools اللي بتقرأ بس (Glob و Grep و Read) تقدر تتنفذ بالتوازي، أما الـ tools اللي بتكتب فمحتاجة وصول حصري. الـ function `partitionToolCalls()` بتجمّع الـ tools الآمنة المتتالية في batches: القائمة [Read, Read, Grep, Edit, Read, Read] بتبقى 3 batches: [Read, Read, Grep] بشكل concurrent، و [Edit] بالتتابع، و [Read, Read] بشكل concurrent.
 
-النتائج دائمًا بتتعمل لها yield بنفس ترتيب الـ tools الأصلي عشان الـ reasoning الخاص بالـ model يفضل deterministic (نفس المدخلات بتدّي نفس المخرجات كل مرة). وفيه sibling abort controller بيوقف الـ subprocesses اللي شغالة بالتوازي لما tool من نوع Bash تفشل، وده بيمنع إهدار الموارد.
+النتائج دائمًا بتتعمل لها yield بنفس ترتيب الـ tools الأصلي عشان الـ reasoning الخاص بالـ model يفضل deterministic. وفيه sibling abort controller بيوقف الـ subprocesses اللي شغالة بالتوازي لما tool من نوع Bash تفشل، وده بيمنع إهدار الموارد.
 
 ---
 
@@ -184,7 +184,7 @@ function buildCharBitmap(filepath: string): number {
 
 بيستخدم Claude Code الـ raw streaming API بدل الـ helper `BetaMessageStream` الخاص بالـ SDK. الـ helper ده بيستدعي `partialParse()` مع كل `input_json_delta`، وده O(n^2) بالنسبة لطول الـ tool input. أما Claude Code فبيجمّع الـ strings الخام وبيعمل parse مرة واحدة لما الـ block يكتمل.
 
-وفيه streaming watchdog (مؤقّت بيراقب الـ stream ويقطعه لو وقف) بيتحكم فيه الـ env var `CLAUDE_STREAM_IDLE_TIMEOUT_MS`، والافتراضي 90 ثانية. بيعمل abort ويعيد المحاولة لو مفيش chunks بتوصل. ولو الـ proxy فشل، فيه fallback (خطة بديلة لما الأساسية تفشل) لاستدعاء `messages.create()` من غير streaming.
+وفيه streaming watchdog بيتحكم فيه الـ env var `CLAUDE_STREAM_IDLE_TIMEOUT_MS`، والافتراضي 90 ثانية. بيعمل abort ويعيد المحاولة لو مفيش chunks بتوصل. ولو الـ proxy فشل، فيه fallback لاستدعاء `messages.create()` من غير streaming.
 
 ---
 

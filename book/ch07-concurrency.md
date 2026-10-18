@@ -10,7 +10,7 @@
 
 ودي الفكرة الأساسية اللي بتحرّك نظام الـ concurrency كله: **الأمان بيتحدد لكل call، مش لكل نوع tool**. استدعاء `Bash("ls -la")` آمن إنه يتشغّل بالتوازي. أما `Bash("rm -rf build/")` فلأ. نفس الـ tool، inputs مختلفة، تصنيف concurrency مختلف. النظام لازم يفحص الـ input قبل ما يقرر.
 
-بيطبّق Claude Code طبقتين من تحسين الـ concurrency. الأولى هي **الـ batch orchestration**: بعد ما الـ response الخاص بالـ model يوصل كامل، بنقسّم الـ tool calls لمجموعات concurrent ومجموعات بالتتابع، وبعدين ننفذ كل مجموعة بالطريقة المناسبة لها. التانية هي **الـ speculative execution** (تنفيذ مبكر على أمل إن النتيجة هتتحتاج): نبدأ نشغّل الـ tools *والـ model ما زال بيعمل stream للـ response*، ونجمع النتائج قبل حتى ما الـ response يكتمل. الآليتين دول مع بعض بيلغوا أغلب الـ wall-clock time (الوقت الفعلي اللي بيعدّي على الساعة) اللي كان هيتقضى في الانتظار.
+بيطبّق Claude Code طبقتين من تحسين الـ concurrency. الأولى هي **الـ batch orchestration**: بعد ما الـ response الخاص بالـ model يوصل كامل، بنقسّم الـ tool calls لمجموعات concurrent ومجموعات بالتتابع، وبعدين ننفذ كل مجموعة بالطريقة المناسبة لها. التانية هي **الـ speculative execution**: نبدأ نشغّل الـ tools *والـ model ما زال بيعمل stream للـ response*، ونجمع النتائج قبل حتى ما الـ response يكتمل. الآليتين دول مع بعض بيلغوا أغلب الـ wall-clock time (الوقت الفعلي اللي بيعدّي على الساعة) اللي كان هيتقضى في الانتظار.
 
 ---
 
@@ -104,7 +104,7 @@ const queuedContextModifiers: Record<
 > = {}
 ```
 
-بعد ما الـ batch الـ concurrent كله يخلص، الـ modifiers بتتطبق بترتيب الـ tools (مش بترتيب الاكتمال)، وده بيحافظ على تطور الـ context بشكل deterministic (نفس المدخلات بتدّي نفس المخرجات كل مرة):
+بعد ما الـ batch الـ concurrent كله يخلص، الـ modifiers بتتطبق بترتيب الـ tools (مش بترتيب الاكتمال)، وده بيحافظ على تطور الـ context بشكل deterministic:
 
 ```typescript
 for (const block of blocks) {
@@ -199,7 +199,7 @@ addTool(block: ToolUseBlock, assistantMessage: AssistantMessage): void
 
 ### processQueue(): الـ Admission Check
 
-الـ admission check (فحص قبل ما الـ tool تدخل التنفيذ) عبارة عن شرط واحد:
+الـ admission check عبارة عن شرط واحد:
 
 ```typescript
 // Pseudocode — illustrates the mutual exclusion rule
@@ -252,7 +252,7 @@ void promise.finally(() => {
 
 ### الـ Result Harvesting
 
-الـ streaming executor بيوفّر methods اتنين للـ result harvesting (جمع النتائج أول ما تجهز)، متصممة لمرحلتين مختلفتين من دورة حياة الـ response.
+الـ streaming executor بيوفّر methods اتنين للـ result harvesting، متصممة لمرحلتين مختلفتين من دورة حياة الـ response.
 
 **`getCompletedResults()`: الجمع أثناء الـ stream.** ده synchronous generator بيتستدعى بين الـ chunks الخاصة بالـ streaming API response. بيمشي على الـ tools array بالترتيب وبيعمل yield لنتائج أي tools خلصت:
 

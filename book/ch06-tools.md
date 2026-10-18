@@ -34,7 +34,7 @@ Tool<Input extends AnyObject, Output, P extends ToolProgressData>
 
 ### buildTool() والـ Fail-Closed Defaults
 
-مفيش tool definition بتنشئ object من `Tool` بشكل مباشر. كل tool بتعدّي من `buildTool()`، وهي factory (function وظيفتها تنشئ الـ object المناسب وترجّعه) بتعمل spread لـ object من الـ defaults تحت الـ definition الخاصة بالـ tool:
+مفيش tool definition بتنشئ object من `Tool` بشكل مباشر. كل tool بتعدّي من `buildTool()`، وهي factory بتعمل spread لـ object من الـ defaults تحت الـ definition الخاصة بالـ tool:
 
 ```typescript
 // Pseudocode — illustrates the fail-closed defaults pattern
@@ -51,7 +51,7 @@ function buildTool(definition) {
 }
 ```
 
-الـ defaults دي fail-closed (لو حصل شك، الافتراضي هو الأكثر أمانًا) عن قصد في الأماكن اللي الأمان فيها مهم. أي tool جديدة نسيت تعمل implement لـ `isConcurrencySafe` بتاخد `false` افتراضيًا، يعني بتشتغل بالتتابع ومش بالتوازي أبدًا. والـ tool اللي نسيت `isReadOnly` بتاخد `false`، فالنظام بيعاملها كعملية كتابة. والـ tool اللي نسيت `toAutoClassifierInput` بترجّع string فاضي، فالـ security classifier (model صغير بيصنّف الطلب: مسموح ولا لأ) الخاص بالـ auto mode بيتخطاها، وده معناه إن نظام الصلاحيات العام هو اللي بيتعامل معاها بدل أي تجاوز آلي.
+الـ defaults دي fail-closed عن قصد في الأماكن اللي الأمان فيها مهم. أي tool جديدة نسيت تعمل implement لـ `isConcurrencySafe` بتاخد `false` افتراضيًا، يعني بتشتغل بالتتابع ومش بالتوازي أبدًا. والـ tool اللي نسيت `isReadOnly` بتاخد `false`، فالنظام بيعاملها كعملية كتابة. والـ tool اللي نسيت `toAutoClassifierInput` بترجّع string فاضي، فالـ security classifier الخاص بالـ auto mode بيتخطاها، وده معناه إن نظام الصلاحيات العام هو اللي بيتعامل معاها بدل أي تجاوز آلي.
 
 الـ default الوحيد اللي *مش* fail-closed هو `checkPermissions`، اللي بيرجّع `allow`. وده شكله معكوس لحد ما تفهم إن نظام الصلاحيات مبني من طبقات: الـ method `checkPermissions` هي logic خاص بكل tool، وبيشتغل *بعد* ما نظام الصلاحيات العام يكون قيّم القواعد والـ hooks والسياسات المبنية على الـ mode. لما tool ترجّع `allow` من `checkPermissions`، هي بتقول "I have no tool-specific objection" (مفيش عندي اعتراض خاص بالـ tool دي)، مش بتدّي صلاحية مفتوحة. وتجميع الحاجات في sub-objects (زي `options`، و fields ليها أسماء زي `readFileState`) بيدّي نفس التنظيم اللي كانت هتدّيه interfaces صغيرة متخصصة، من غير عناء إنك تعلن 5 interface types منفصلة وتعملها implement وتمررها في 40+ call sites.
 
@@ -97,7 +97,7 @@ type ToolResult<T> = {
 
 ### getAllBaseTools(): الـ Single Source of Truth
 
-الـ function `getAllBaseTools()` بترجّع القائمة الكاملة لكل tool ممكن توجد في الـ process الحالية. الـ tools الموجودة دائمًا بتيجي الأول، وبعدها الـ tools المشروطة اللي متحكم فيها feature flags (مفاتيح بتشغّل أو تقفل ميزات):
+الـ function `getAllBaseTools()` بترجّع القائمة الكاملة لكل tool ممكن توجد في الـ process الحالية. الـ tools الموجودة دائمًا بتيجي الأول، وبعدها الـ tools المشروطة اللي متحكم فيها feature flags:
 
 ```typescript
 const SleepTool = feature('PROACTIVE') || feature('KAIROS')
@@ -105,7 +105,7 @@ const SleepTool = feature('PROACTIVE') || feature('KAIROS')
   : null
 ```
 
-الـ import الخاص بـ `feature()` من `bun:bundle` بيتحدد وقت الـ bundle. لما `feature('AGENT_TRIGGERS')` تكون false بشكل static، الـ bundler بيحذف استدعاء `require()` بالكامل، وده dead code elimination (حذف الكود اللي مستحيل يتنفذ) بيخلّي الـ binary صغير.
+الـ import الخاص بـ `feature()` من `bun:bundle` بيتحدد وقت الـ bundle. لما `feature('AGENT_TRIGGERS')` تكون false بشكل static، الـ bundler بيحذف استدعاء `require()` بالكامل، وده dead code elimination بيخلّي الـ binary صغير.
 
 ### assembleToolPool(): دمج الـ Built-in Tools مع الـ MCP Tools
 
@@ -210,7 +210,7 @@ graph TD
 
 ### الـ Bubble Mode للـ Sub-Agents
 
-الـ sub-agents في الـ coordinator-worker patterns مش بتقدر تعرض permission prompts لأنها ملهاش terminal. الـ mode `bubble` بيخلّي طلبات الصلاحيات تطلع لفوق للـ parent context. والـ coordinator agent (agent وظيفته يوزّع الشغل على agents تانية ويجمع النتائج)، اللي شغال في الـ main thread ومعاه terminal، بيتعامل مع الـ prompt وبيرجّع القرار لتحت.
+الـ sub-agents في الـ coordinator-worker patterns مش بتقدر تعرض permission prompts لأنها ملهاش terminal. الـ mode `bubble` بيخلّي طلبات الصلاحيات تطلع لفوق للـ parent context. والـ coordinator agent، اللي شغال في الـ main thread ومعاه terminal، بيتعامل مع الـ prompt وبيرجّع القرار لتحت.
 
 ---
 
@@ -218,7 +218,7 @@ graph TD
 
 الـ tools اللي عندها `shouldDefer: true` بتتبعت للـ API بـ `defer_loading: true`، يعني الأسماء والأوصاف بس، من غير الـ parameter schemas الكاملة. وده بيقلل حجم الـ prompt الأولي. وعشان الـ model يستخدم deferred tool، لازم يستدعي `ToolSearchTool` الأول عشان يحمّل الـ schema الخاص بيها. والـ failure mode (شكل الفشل المحتمل) هنا فيه درس: لما الـ model يستدعي deferred tool من غير ما يحمّلها، الـ Zod validation بيفشل (كل الـ parameters اللي ليها types بتوصل كـ strings)، والنظام بيضيف تلميح موجّه عشان يصلح الوضع.
 
-الـ deferred loading (التحميل بيتأجل لحد ما الحاجة تتطلب) بيحسّن كمان نسبة الـ cache hits: الـ tools اللي بتتبعت بـ `defer_loading: true` مش بتضيف للـ prompt غير اسمها، فإضافة أو حذف deferred MCP tool بيغيّر الـ prompt بشوية tokens بدل مئات.
+الـ deferred loading بيحسّن كمان نسبة الـ cache hits: الـ tools اللي بتتبعت بـ `defer_loading: true` مش بتضيف للـ prompt غير اسمها، فإضافة أو حذف deferred MCP tool بيغيّر الـ prompt بشوية tokens بدل مئات.
 
 ---
 

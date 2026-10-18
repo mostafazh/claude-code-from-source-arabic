@@ -4,7 +4,7 @@
 
 كل extensibility system بيجاوب على سؤالين: النظام يقدر يعمل إيه، وإمتى بيعمله. أغلب الـ frameworks بتخلط الاتنين مع بعض: الـ plugin بيسجّل القدرات والـ lifecycle callbacks في نفس الـ object، والحد الفاصل بين "adding a feature" (إضافة ميزة) و "intercepting a feature" (اعتراض ميزة) بيتلاشى في registration API واحد.
 
-أما Claude Code فبيفصل بينهم بشكل واضح. الـ skills بتوسّع اللي الـ model يقدر يعمله. هي ملفات markdown بتتحوّل لأوامر، وبتحقن تعليمات جديدة في المحادثة لما تتستدعى. والـ hooks بتوسّع إمتى الحاجات بتحصل وإزاي. هي lifecycle interceptors (نقاط اعتراض في دورة حياة التنفيذ)، بتشتغل عند أكثر من 24 نقطة مختلفة أثناء الـ session، وبتشغّل أي كود: كود يقدر يمنع أفعال، أو يعدّل الـ inputs، أو يجبر الـ model يكمّل، أو يراقب في صمت.
+أما Claude Code فبيفصل بينهم بشكل واضح. الـ skills بتوسّع اللي الـ model يقدر يعمله. هي ملفات markdown بتتحوّل لأوامر، وبتحقن تعليمات جديدة في المحادثة لما تتستدعى. والـ hooks بتوسّع إمتى الحاجات بتحصل وإزاي. هي lifecycle interceptors، بتشتغل عند أكثر من 24 نقطة مختلفة أثناء الـ session، وبتشغّل أي كود: كود يقدر يمنع أفعال، أو يعدّل الـ inputs، أو يجبر الـ model يكمّل، أو يراقب في صمت.
 
 والفصل بينهم ده مش صدفة. الـ skills محتوى: بتوسّع معرفة الـ model وقدراته بإضافة نص للـ prompt. والـ hooks control flow: بتغيّر مسار التنفيذ من غير ما تغيّر اللي الـ model يعرفه. الـ skill ممكن تعلّم الـ model إزاي يشغّل عملية الـ deployment الخاصة بفريقك. والـ hook ممكن يضمن إن مفيش أمر deployment بيتنفذ من غير test suite ناجح. الـ skill بتضيف قدرة، والـ hook بيضيف قيد.
 
@@ -16,7 +16,7 @@
 
 ### الـ Two-Phase Loading
 
-التحسين الأساسي في نظام الـ skills هو إن الـ frontmatter (الـ metadata اللي في أول الملف بين `---`) بيتحمّل عند بدء التشغيل، لكن المحتوى الكامل مش بيتحمّل غير عند الاستدعاء.
+التحسين الأساسي في نظام الـ skills هو إن الـ frontmatter بيتحمّل عند بدء التشغيل، لكن المحتوى الكامل مش بيتحمّل غير عند الاستدعاء.
 
 ```mermaid
 flowchart LR
@@ -223,7 +223,7 @@ sequenceDiagram
     Note over CC: Reads from frozen snapshot<br/>Ignores filesystem changes
 ```
 
-الـ function `captureHooksConfigSnapshot()` بتتستدعى مرة واحدة أثناء بدء التشغيل. ومن اللحظة دي، الـ function `executeHooks()` بتقرأ من الـ snapshot (نسخة مجمّدة في لحظة معينة)، وعمرها ما بترجع تقرأ ملفات الإعدادات بشكل ضمني. والـ snapshot مش بيتحدّث غير من قنوات صريحة: الأمر `/hooks` أو اكتشاف من الـ file watcher، والاتنين بيعيدوا بناءه عن طريق `updateHooksConfigSnapshot()`.
+الـ function `captureHooksConfigSnapshot()` بتتستدعى مرة واحدة أثناء بدء التشغيل. ومن اللحظة دي، الـ function `executeHooks()` بتقرأ من الـ snapshot، وعمرها ما بترجع تقرأ ملفات الإعدادات بشكل ضمني. والـ snapshot مش بيتحدّث غير من قنوات صريحة: الأمر `/hooks` أو اكتشاف من الـ file watcher، والاتنين بيعيدوا بناءه عن طريق `updateHooksConfigSnapshot()`.
 
 سلسلة تطبيق الـ policy: الإعداد `disableAllHooks` في إعدادات الـ policy بيمسح كل حاجة. والإعداد `allowManagedHooksOnly` بيستبعد hooks المستخدم والمشروع. المستخدم يقدر يعطّل الـ hooks الخاصة بيه بضبط `disableAllHooks`، لكن مش بيقدر يعطّل الـ hooks اللي المؤسسة بتديرها. طبقة الـ policy دائمًا بتكسب.
 
@@ -251,7 +251,7 @@ flowchart TD
     Remove --> Done
 ```
 
-الـ fast path (طريق مختصر للحالات البسيطة) الخاص بالـ callbacks الداخلية تحسين كبير. لما كل الـ hooks المطابقة تكون داخلية (analytics للوصول للملفات، و commit attribution)، النظام بيتخطى الـ span tracking، وإنشاء الـ abort signals، ورسائل التقدم، والـ pipeline الكامل لمعالجة الـ output. وأغلب استدعاءات PostToolUse مش بتقابل غير callbacks داخلية.
+الـ fast path الخاص بالـ callbacks الداخلية تحسين كبير. لما كل الـ hooks المطابقة تكون داخلية (analytics للوصول للملفات، و commit attribution)، النظام بيتخطى الـ span tracking، وإنشاء الـ abort signals، ورسائل التقدم، والـ pipeline الكامل لمعالجة الـ output. وأغلب استدعاءات PostToolUse مش بتقابل غير callbacks داخلية.
 
 الـ JSON الخاص بالـ hook input بيتعمل له serialize مرة واحدة عن طريق closure من نوع lazy اسمه `getJsonInput()`، وبيتستخدم في كل الـ hooks المتوازية. وحقن البيئة بيضبط `CLAUDE_PROJECT_DIR` و `CLAUDE_PLUGIN_ROOT`، وفي events معينة `CLAUDE_ENV_FILE`، وهو ملف الـ hooks تقدر تكتب فيه environment exports.
 

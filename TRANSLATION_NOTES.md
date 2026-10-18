@@ -2650,3 +2650,22 @@ CLOSE-CALL RULINGS not already covered: ch13 — "beyond recognition" rendering 
   - was: كل field في الـ prompt عندك يا ثابت يا متغير.
   - now: كل field في الـ prompt عندك إما ثابت أو متغير.
   - why: «يا … يا» is a colloquial either/or construction outside the closed glue list in §1.2.
+
+
+## 4. Eqraatech Alignment Review (Round 3)
+
+### Executive Summary of Alignment with `Eqraatech/Software-Engineering-In-Arabic`
+
+A thorough cross-repository audit was conducted comparing this translation against real-world guides from [Eqraatech/Software-Engineering-In-Arabic](https://github.com/Eqraatech/Software-Engineering-In-Arabic) (such as `model-context-protocol.md`, `concurrency-vs-parallelism.md`, `layered-architecture.md`, `database-connection-pool.md`, and `top-24-system-design-terminologies.md`).
+
+Key rulings and revisions implemented across the entire project:
+1. **Eliminated Intrusive Parenthetical Glosses (Over-Glossing):**
+   - The rigid table of 100+ required parenthetical dictionary definitions (e.g., `deterministic (نفس المدخلات بتدّي نفس المخرجات كل مرة)`) was eliminated across all 18 chapters and README.
+   - Restored Eqraatech's dual terminology strategy: standard Arabic term paired with the English technical term in parentheses (e.g. `اتصال (Connection)`, `ثغرة أمنية (Attack Vector)`, `آثار جانبية (Side Effects)`, `المسار السريع (Fast Path)`, `حدود الثقة والأمان (Trust Boundary)`), or the English industry loanword prefixed with `الـ` (e.g. `الـ Cache`, `الـ Query Loop`, `الـ Latency`).
+2. **Restored Authentic Egyptian Technical Register:**
+   - Overturned the artificial bans on standard Egyptian technical vocabulary widely used in Eqraatech (`أكتر`, `كتير`, `بالظبط`, `بتاع`, `عايز`, `تخيل إنك...`, `تعالوا نشوف...`).
+3. **Fixed Clunky Number-Noun Formations:**
+   - Replaced unidiomatic constructs like `instances اتنين` and `regular expressions اتنين` with natural Arabic phrasing (`نسختين (Two Instances)` and `تعبيرين نمطيين`).
+4. **Updated Documentation:**
+   - Updated `STYLE_GUIDE.md` to v3 (aligned with Eqraatech).
+   - Created comprehensive review report in `REVIEW.md`.

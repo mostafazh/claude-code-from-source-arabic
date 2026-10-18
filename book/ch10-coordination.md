@@ -10,7 +10,7 @@
 
 رد Claude Code على المشكلة دي مش mechanism واحد، لكن stack متعدد الطبقات من الـ orchestration patterns، كل واحد منها مناسب لشكل مختلف من الشغل. الـ background tasks للأوامر من نوع fire-and-forget (بتشغّلها ومش بتستنى نتيجتها). والـ coordinator mode لهيكل الـ manager-worker. والـ swarm teams للتعاون بين أقران (peer-to-peer). وكمان communication protocol موحّد بيربطها كلها ببعض.
 
-طبقة الـ orchestration بتمتد على حوالي 40 ملف موزّعين على `tools/AgentTool/` و `tasks/` و `coordinator/` و `tools/SendMessageTool/` و `utils/swarm/`. ورغم الاتساع ده، التصميم مرتكز على state machine (مجموعة حالات محددة وانتقالات بينها) واحد كل الـ patterns بتشترك فيه. فهم الـ state machine ده، وهو الـ abstraction (مفهوم أساسي بيخبّي التفاصيل وراه) اسمه `Task` في ملف `Task.ts`، هو الشرط الأساسي لفهم كل حاجة تانية.
+طبقة الـ orchestration بتمتد على حوالي 40 ملف موزّعين على `tools/AgentTool/` و `tasks/` و `coordinator/` و `tools/SendMessageTool/` و `utils/swarm/`. ورغم الاتساع ده، التصميم مرتكز على state machine واحد كل الـ patterns بتشترك فيه. فهم الـ state machine ده، وهو الـ abstraction اسمه `Task` في ملف `Task.ts`، هو الشرط الأساسي لفهم كل حاجة تانية.
 
 الفصل ده بيتتبع الـ stack كله، من الـ task state machine في الأساس لحد أكثر الـ multi-agent topologies تعقيدًا.
 
@@ -146,7 +146,7 @@ export function getAllTasks(): Task[] {
 
 لاحظ الإضافة الشرطية: `LocalWorkflowTask` و `MonitorMcpTask` وراهم feature gating وممكن ما يكونوش موجودين وقت التشغيل. والـ interface `Task` صغيرة عن قصد. النسخ الأولى كان فيها methods زي `spawn()` و `render()`، لكن اتشالت لما بقى واضح إن الـ spawning والـ rendering عمرهم ما بيتستدعوا بشكل polymorphic. كل task type ليه منطق الـ spawn الخاص بيه، وإدارة الـ state الخاصة بيه، والـ rendering الخاص بيه. العملية الوحيدة اللي فعلًا محتاجة dispatch حسب الـ type هي `kill()`، وعشان كده هي كل اللي الـ interface بتطلبه.
 
-ده مثال على تطوير الـ interface بالحذف. التصميم الأولي كان متخيّل إن كل الـ task types هتشترك في lifecycle interface واحدة. لكن في الواقع، الـ types اختلفت عن بعض لدرجة إن الـ interface المشتركة بقت وهم: `spawn()` لأمر shell و `spawn()` لـ in-process teammate تقريبًا مفيش بينهم أي حاجة مشتركة. وبدل ما يحتفظوا بـ leaky abstraction (abstraction بتسرّب تفاصيلها الداخلية)، الفريق شال كل حاجة ما عدا الـ method الوحيدة اللي بتستفيد فعلًا من الـ polymorphism.
+ده مثال على تطوير الـ interface بالحذف. التصميم الأولي كان متخيّل إن كل الـ task types هتشترك في lifecycle interface واحدة. لكن في الواقع، الـ types اختلفت عن بعض لدرجة إن الـ interface المشتركة بقت وهم: `spawn()` لأمر shell و `spawn()` لـ in-process teammate تقريبًا مفيش بينهم أي حاجة مشتركة. وبدل ما يحتفظوا بـ leaky abstraction، الفريق شال كل حاجة ما عدا الـ method الوحيدة اللي بتستفيد فعلًا من الـ polymorphism.
 
 ---
 
@@ -156,7 +156,7 @@ export function getAllTasks(): Task[] {
 
 ### الـ Foreground: الـ Generator Chain
 
-لما الـ agent يشتغل بشكل synchronous، الـ parent بيعمل iterate مباشرة على الـ async generator الخاص بـ `runAgent()`، وبيعمل yield لكل رسالة لأعلى في الـ call stack. الـ mechanism المهم هنا هو الـ background escape hatch (مخرج استثنائي من القاعدة): الـ sync loop بيعمل race بين "next message from agent" (الرسالة الجاية من الـ agent) و "background signal" (إشارة النقل للخلفية):
+لما الـ agent يشتغل بشكل synchronous، الـ parent بيعمل iterate مباشرة على الـ async generator الخاص بـ `runAgent()`، وبيعمل yield لكل رسالة لأعلى في الـ call stack. الـ mechanism المهم هنا هو الـ background escape hatch: الـ sync loop بيعمل race بين "next message from agent" (الرسالة الجاية من الـ agent) و "background signal" (إشارة النقل للخلفية):
 
 ```typescript
 const agentIterator = runAgent({ ...params })[Symbol.asyncIterator]()
@@ -260,7 +260,7 @@ export type ProgressTracker = {
 
 خد مثال migration لـ codebase. الـ agent محتاج: (1) يفهم الـ patterns الحالية في 200 ملف، و(2) يصمم استراتيجية الـ migration، و(3) يطبّق التغييرات على كل ملف، و(4) يتأكد إن مفيش حاجة اتكسرت. الخطوتين 1 و 3 بيستفيدوا من الـ parallelism. الخطوة 2 محتاجة تجمّع نتائج الخطوة 1. والخطوة 4 معتمدة على الخطوة 3. الـ agent الواحد لو عمل ده بالتتابع هيصرف أغلب الـ token budget الخاص بيه في إعادة قراءة الملفات. و background agents كثيرة لو عملت ده من غير تنسيق هتنتج تغييرات مش متسقة.
 
-الـ coordinator mode بيحل ده بفصل الـ agent اللي "بيفكّر" عن الـ agents اللي "بتنفّذ". الـ coordinator (agent وظيفته يوزّع الشغل على agents تانية ويجمع النتائج) بيتولّى الخطوتين 1 و 2 (يبعت research workers، وبعدين يجمّع). والـ workers بيتولّوا الخطوتين 3 و 4 (تطبيق التغييرات وتشغيل الـ tests). الـ coordinator بيشوف الصورة الكاملة، والـ workers بتشوف الـ task المحددة الخاصة بكل واحد.
+الـ coordinator mode بيحل ده بفصل الـ agent اللي "بيفكّر" عن الـ agents اللي "بتنفّذ". الـ coordinator بيتولّى الخطوتين 1 و 2 (يبعت research workers، وبعدين يجمّع). والـ workers بيتولّوا الخطوتين 3 و 4 (تطبيق التغييرات وتشغيل الـ tests). الـ coordinator بيشوف الصورة الكاملة، والـ workers بتشوف الـ task المحددة الخاصة بكل واحد.
 
 ### التفعيل
 
@@ -275,7 +275,7 @@ export function isCoordinatorMode(): boolean {
 }
 ```
 
-عند استئناف الـ session، الـ function `matchSessionMode()` بتتحقق هل الـ mode المخزّن للـ session اللي بتترجع مطابق للبيئة الحالية. لو اختلفوا، الـ environment variable بيتقلب عشان يطابق. ده بيمنع السيناريو المُحيّر إن coordinator session ترجع كـ agent عادي (فتفقد وعيها بالـ workers الخاصة بيها) أو session عادية ترجع كـ coordinator (فتفقد الوصول للـ tools الخاصة بيها). الـ mode الخاص بالـ session هو الـ source of truth (المرجع الوحيد المعتمد)، والـ environment variable هو إشارة الـ runtime.
+عند استئناف الـ session، الـ function `matchSessionMode()` بتتحقق هل الـ mode المخزّن للـ session اللي بتترجع مطابق للبيئة الحالية. لو اختلفوا، الـ environment variable بيتقلب عشان يطابق. ده بيمنع السيناريو المُحيّر إن coordinator session ترجع كـ agent عادي (فتفقد وعيها بالـ workers الخاصة بيها) أو session عادية ترجع كـ coordinator (فتفقد الوصول للـ tools الخاصة بيها). الـ mode الخاص بالـ session هو الـ source of truth، والـ environment variable هو إشارة الـ runtime.
 
 ### قيود الـ Tools
 
@@ -386,7 +386,7 @@ export function isForkSubagentEnabled(): boolean {
 
 ## نظام الـ Swarm
 
-الـ coordinator mode هرمي: manager واحد، و workers كثيرة، وتحكم من فوق لتحت. أما نظام الـ swarm (مجموعة agents بتشتغل مع بعض على نفس الهدف) فهو البديل الـ peer-to-peer: أكثر من instance من Claude Code شغالة كفريق، وفيه leader بينسّق بين teammates كثيرة عن طريق تبادل الرسائل.
+الـ coordinator mode هرمي: manager واحد، و workers كثيرة، وتحكم من فوق لتحت. أما نظام الـ swarm فهو البديل الـ peer-to-peer: أكثر من instance من Claude Code شغالة كفريق، وفيه leader بينسّق بين teammates كثيرة عن طريق تبادل الرسائل.
 
 ### الـ Team Context
 
@@ -428,7 +428,7 @@ const agentId = registered ?? toAgentId(input.to)
 
 ### الـ In-Process Teammates
 
-الـ in-process teammates (داخل نفس الـ process، من غير process جديدة) بتشتغل في نفس الـ Node.js process الخاصة بالـ leader، ومعزولة عن طريق `AsyncLocalStorage`. الـ state الخاص بيها بيمتد من الـ base بـ fields خاصة بالـ team:
+الـ in-process teammates بتشتغل في نفس الـ Node.js process الخاصة بالـ leader، ومعزولة عن طريق `AsyncLocalStorage`. الـ state الخاص بيها بيمتد من الـ base بـ fields خاصة بالـ team:
 
 ```typescript
 export type InProcessTeammateTaskState = TaskStateBase & {
@@ -446,7 +446,7 @@ export type InProcessTeammateTaskState = TaskStateBase & {
 }
 ```
 
-الحد الأقصى لـ `messages` وهو 50 عنصر يستاهل شرح. أثناء التطوير، التحليل كشف إن كل in-process agent بيراكم حوالي 20MB من الـ RSS عند 500+ turn. والـ whale sessions (جلسات المستخدمين الثقيلين اللي بيشغّلوا workflows طويلة) اتلاحظ إنها بتشغّل 292 agent في دقيقتين، وده رفع الـ RSS لـ 36.8GB. فالحد الأقصى 50 رسالة للتمثيل في الـ UI هو صمام أمان للذاكرة. محادثة الـ agent الفعلية بتكمّل بسجلها الكامل، والـ snapshot (نسخة مجمّدة في لحظة معينة) الموجّه للـ UI هو بس اللي بيتقطع.
+الحد الأقصى لـ `messages` وهو 50 عنصر يستاهل شرح. أثناء التطوير، التحليل كشف إن كل in-process agent بيراكم حوالي 20MB من الـ RSS عند 500+ turn. والـ whale sessions (جلسات المستخدمين الثقيلين اللي بيشغّلوا workflows طويلة) اتلاحظ إنها بتشغّل 292 agent في دقيقتين، وده رفع الـ RSS لـ 36.8GB. فالحد الأقصى 50 رسالة للتمثيل في الـ UI هو صمام أمان للذاكرة. محادثة الـ agent الفعلية بتكمّل بسجلها الكامل، والـ snapshot الموجّه للـ UI هو بس اللي بيتقطع.
 
 الـ flag `isIdle` بيتيح work-stealing pattern. الـ teammate الـ idle مش بيستهلك tokens ولا API calls، هو ببساطة مستني الرسالة الجاية. والـ array `onIdleCallbacks` بيخلّي النظام يتدخل عند لحظة الانتقال من النشاط للـ idle، وده بيتيح orchestration patterns زي "wait for all teammates to finish, then proceed" (استنى كل الـ teammates يخلّصوا، وبعدين كمّل).
 
@@ -456,7 +456,7 @@ export type InProcessTeammateTaskState = TaskStateBase & {
 
 ### الـ Mailbox
 
-الـ teammates بتتواصل عن طريق نظام mailbox مبني على الملفات (ملف على الـ disk بتتحط فيه الرسائل الموجهة للـ agent). لما `SendMessage` يستهدف teammate، الرسالة بتتكتب في ملف الـ mailbox الخاص بالمستلم على الـ disk:
+الـ teammates بتتواصل عن طريق نظام mailbox مبني على الملفات. لما `SendMessage` يستهدف teammate، الرسالة بتتكتب في ملف الـ mailbox الخاص بالمستلم على الـ disk:
 
 ```typescript
 await writeToMailbox(recipientName, {
@@ -470,7 +470,7 @@ await writeToMailbox(recipientName, {
 
 الرسائل ممكن تكون نص عادي، أو structured protocol messages (طلبات الـ shutdown، وموافقات الـ plan)، أو broadcasts (`to: "*"` بيبعت لكل أعضاء الـ team ما عدا المُرسل). وفيه poller hook بيعالج الرسائل الواردة وبيوجّهها لمحادثة الـ teammate.
 
-المنهج المبني على الملفات بسيط عن قصد. مفيش message broker، ولا event bus، ولا shared memory channel. الملفات دائمة (بتصمد لو الـ process اتعطلت)، وقابلة للفحص (تقدر تعمل `cat` للـ mailbox)، ورخيصة (من غير اعتماديات على infrastructure). وفي نظام حجم الرسائل فيه بيتقاس بالعشرات في الـ session، مش بالآلاف في الثانية، ده الـ trade-off (مفاضلة: بتكسب حاجة وبتدفع ثمنها في حاجة تانية) الصحيح. الـ message queue المبني على Redis هيضيف تعقيد تشغيلي، و dependency، و failure modes (أشكال الفشل المحتملة)، وكل ده عشان متطلب throughput (كمية الشغل اللي بتخلص في الوقت) بسيط لدرجة إن استدعاء واحد للـ filesystem بيغطيه.
+المنهج المبني على الملفات بسيط عن قصد. مفيش message broker، ولا event bus، ولا shared memory channel. الملفات دائمة (بتصمد لو الـ process اتعطلت)، وقابلة للفحص (تقدر تعمل `cat` للـ mailbox)، ورخيصة (من غير اعتماديات على infrastructure). وفي نظام حجم الرسائل فيه بيتقاس بالعشرات في الـ session، مش بالآلاف في الثانية، ده الـ trade-off الصحيح. الـ message queue المبني على Redis هيضيف تعقيد تشغيلي، و dependency، و failure modes (أشكال الفشل المحتملة)، وكل ده عشان متطلب throughput (كمية الشغل اللي بتخلص في الوقت) بسيط لدرجة إن استدعاء واحد للـ filesystem بيغطيه.
 
 الـ broadcast mechanism يستاهل ملاحظة. لما رسالة تتبعت لـ `"*"`، المُرسل بيلف على كل أعضاء الـ team من ملف الـ team، وبيعدّي نفسه (بمقارنة مش حساسة لحالة الحروف)، وبيكتب في mailbox كل عضو على حدة:
 

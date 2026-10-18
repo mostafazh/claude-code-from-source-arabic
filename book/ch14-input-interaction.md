@@ -2,7 +2,7 @@
 
 ## bytes خام، وأفعال ليها معنى
 
-لما تضغط Ctrl+X وبعدها Ctrl+K في Claude Code، الـ terminal بيبعت سلسلتين من الـ bytes بينهم حوالي 200 ملي ثانية. الأولى هي `0x18` (ASCII CAN). والتانية هي `0x0B` (ASCII VT). ولا واحد من الـ bytes دول شايل أي معنى في نفسه غير إنه "control character". نظام الـ input لازم يفهم إن الـ bytes الاتنين دول، لما يوصلوا ورا بعض في فترة زمنية محددة، بيكوّنوا الـ chord `ctrl+x ctrl+k`. والـ chord ده بيتربط بالـ action `chat:killAgents`، واللي بتوقف كل الـ sub-agents الشغالة.
+لما تضغط Ctrl+X وبعدها Ctrl+K في Claude Code، الـ terminal بيبعت سلسلتين من الـ bytes بينهم حوالي 200 ملي ثانية. الأولى هي `0x18` (ASCII CAN). والتانية هي `0x0B` (ASCII VT). ولا واحد من الـ bytes دول شايل أي معنى في نفسه غير إنه "control character". نظام الـ input لازم يفهم إن البايتين دول، لما يوصلوا ورا بعض في فترة زمنية محددة، بيكوّنوا الـ chord `ctrl+x ctrl+k`. والـ chord ده بيتربط بالـ action `chat:killAgents`، واللي بتوقف كل الـ sub-agents الشغالة.
 
 بين الـ bytes الخام والـ agents اللي اتوقفت، فيه 6 أنظمة بتشتغل: tokenizer بيفصل الـ escape sequences، و parser بيصنّفها على 5 terminal protocols، و keybinding resolver بيطابق السلسلة مع الـ bindings الخاصة بالـ context الحالي، و chord state machine بيدير السلسلة متعددة المفاتيح، و handler بينفذ الـ action، وفي الآخر React بيجمّع تحديثات الـ state الناتجة في render واحد.
 
@@ -37,7 +37,7 @@ flowchart TD
     style BATCH fill:#e8f5e9
 ```
 
-الـ tokenizer هو الأساس. الـ input الجاي من الـ terminal عبارة عن stream من الـ bytes بيخلط بين حروف قابلة للطباعة، و control codes، و escape sequences (سلاسل bytes بتتحكم في الـ terminal) متعددة الـ bytes، من غير أي framing واضح. الـ `read()` الواحد من الـ stdin ممكن يرجّع `\x1b[1;5A` (يعني Ctrl+Up)، أو ممكن يرجّع `\x1b` في قراءة و `[1;5A` في القراءة اللي بعدها، حسب سرعة وصول الـ bytes من الـ PTY. الـ tokenizer بيحتفظ بـ state machine (مجموعة حالات محددة وانتقالات بينها) بتخزّن الـ escape sequences الناقصة في buffer وبتطلّع tokens كاملة بس.
+الـ tokenizer هو الأساس. الـ input الجاي من الـ terminal عبارة عن stream من الـ bytes بيخلط بين حروف قابلة للطباعة، و control codes، و escape sequences متعددة الـ bytes، من غير أي framing واضح. الـ `read()` الواحد من الـ stdin ممكن يرجّع `\x1b[1;5A` (يعني Ctrl+Up)، أو ممكن يرجّع `\x1b` في قراءة و `[1;5A` في القراءة اللي بعدها، حسب سرعة وصول الـ bytes من الـ PTY. الـ tokenizer بيحتفظ بـ state machine بتخزّن الـ escape sequences الناقصة في buffer وبتطلّع tokens كاملة بس.
 
 مشكلة الـ sequence الناقصة مشكلة جوهرية. لما الـ tokenizer يشوف `\x1b` لوحده، مش بيقدر يعرف هو ده زرار Escape ولا بداية CSI sequence. فبيحفظ الـ byte في الـ buffer ويشغّل timer مدته 50ms. لو ماوصلش أي تكملة، الـ buffer بيتفضّى والـ `\x1b` بيتحوّل لضغطة Escape. لكن قبل ما يفضّي الـ buffer، الـ tokenizer بيفحص `stdin.readableLength`: لو فيه bytes مستنية في الـ kernel buffer، الـ timer بيتعاد تشغيله بدل ما الـ buffer يتفضّى. وده بيعالج حالة إن الـ event loop كان متوقف لأكثر من 50ms والـ bytes المكمّلة موجودة فعلًا في الـ buffer لكن ماتقرتش لحد الآن.
 
@@ -70,9 +70,9 @@ flowchart TD
 
 **الـ CSI u (Kitty keyboard protocol)** هو المعيار الحديث. الصيغة: `ESC [ codepoint [; modifier] u`. مثال: `ESC[13;2u` هي Shift+Enter، و `ESC[27u` هي Escape من غير modifiers. الـ codepoint بيحدد المفتاح بشكل قاطع: مفيش التباس بين Escape كزرار و Escape كبداية sequence. وكلمة الـ modifier بتشفّر shift و alt و ctrl و super (يعني Cmd) كـ bits منفصلة. بيفعّل Claude Code الـ protocol ده على الـ terminals اللي بتدعمه عن طريق الـ escape sequence `ENABLE_KITTY_KEYBOARD` عند بدء التشغيل، وبيقفله عند الخروج بـ `DISABLE_KITTY_KEYBOARD`. واكتشاف الـ protocol بيحصل بـ handshake من سؤال ورد: البرنامج بيبعت `CSI ? u` والـ terminal بيرد بـ `CSI ? flags u`، والـ `flags` بتحدد مستوى الـ protocol المدعوم.
 
-**الـ xterm modifyOtherKeys** هو الـ fallback (خطة بديلة لما الأساسية تفشل) للـ terminals زي Ghostty عبر SSH، لما التفاوض على الـ Kitty protocol ما يحصلش. الصيغة: `ESC [ 27 ; modifier ; keycode ~`. خد بالك إن ترتيب الـ parameters معكوس عن الـ CSI u: الـ modifier بييجي قبل الـ keycode، وبعدين الـ keycode. وده مصدر شايع لـ bugs في الـ parsers. الـ protocol بيتفعّل بـ `CSI > 4 ; 2 m`، وبيطلع من Ghostty و tmux و xterm لما هوية الـ TERM الخاصة بالـ terminal ما تتكتشفش (وده شايع عبر SSH لأن `TERM_PROGRAM` مش بيتبعت).
+**الـ xterm modifyOtherKeys** هو الـ fallback للـ terminals زي Ghostty عبر SSH، لما التفاوض على الـ Kitty protocol ما يحصلش. الصيغة: `ESC [ 27 ; modifier ; keycode ~`. خد بالك إن ترتيب الـ parameters معكوس عن الـ CSI u: الـ modifier بييجي قبل الـ keycode، وبعدين الـ keycode. وده مصدر شايع لـ bugs في الـ parsers. الـ protocol بيتفعّل بـ `CSI > 4 ; 2 m`، وبيطلع من Ghostty و tmux و xterm لما هوية الـ TERM الخاصة بالـ terminal ما تتكتشفش (وده شايع عبر SSH لأن `TERM_PROGRAM` مش بيتبعت).
 
-**الـ legacy terminal sequences** بتغطي كل حاجة تانية: مفاتيح الـ function عن طريق sequences بتبدأ بـ `ESC O` و `ESC [`، ومفاتيح الأسهم، والـ numpad، و Home/End/Insert/Delete، وكل الخليط الفوضوي من أشكال VT100/VT220/xterm اللي اتراكم على مدار 40 سنة من تطوّر الـ terminals. الـ parser بيستخدم regular expressions اتنين عشان يطابقها: `FN_KEY_RE` للـ pattern اللي بيبدأ بـ `ESC O/N/[/[[` (وده بيطابق مفاتيح الـ function ومفاتيح الأسهم ونسخها اللي معاها modifiers)، و `META_KEY_CODE_RE` للـ meta-key codes (يعني `ESC` وبعده حرف أو رقم واحد، وده التشفير التقليدي لـ Alt+مفتاح).
+**الـ legacy terminal sequences** بتغطي كل حاجة تانية: مفاتيح الـ function عن طريق sequences بتبدأ بـ `ESC O` و `ESC [`، ومفاتيح الأسهم، والـ numpad، و Home/End/Insert/Delete، وكل الخليط الفوضوي من أشكال VT100/VT220/xterm اللي اتراكم على مدار 40 سنة من تطوّر الـ terminals. الـ parser بيستخدم تعبيرين نمطيين (2 Regular Expressions) عشان يطابقها: `FN_KEY_RE` للـ pattern اللي بيبدأ بـ `ESC O/N/[/[[` (وده بيطابق مفاتيح الـ function ومفاتيح الأسهم ونسخها اللي معاها modifiers)، و `META_KEY_CODE_RE` للـ meta-key codes (يعني `ESC` وبعده حرف أو رقم واحد، وده التشفير التقليدي لـ Alt+مفتاح).
 
 التحدي في الـ legacy sequences هو الالتباس. `ESC [ 1 ; 2 R` ممكن تكون Shift+F3 أو ممكن تكون cursor position report، حسب الـ context. الـ parser بيحل ده بفحص الـ private marker: تقارير موضع الـ cursor بتستخدم `CSI ? row ; col R` (بالـ marker الخاص `?`)، أما مفاتيح الـ function اللي معاها modifiers فبتستخدم `CSI params R` (من غيره). وفكّ الالتباس ده هو سبب إن Claude Code بيطلب DECXCPR (يعني extended cursor position reports) بدل الـ CPR العادي: الصيغة الممتدة مفيهاش التباس.
 
@@ -82,7 +82,7 @@ flowchart TD
 
 **الـ bracketed paste** بيحصر المحتوى اللي اتعمل له paste بين العلامتين `ESC [200~` و `ESC [201~`. وكل اللي بين العلامتين بيتحوّل لـ `ParsedKey` واحد معاه `isPasted: true`، بصرف النظر عن أي escape sequences ممكن يكون النص شايلها. وده بيمنع إن الكود اللي اتعمل له paste يتفهم كأوامر، ودي ميزة أمان حرجة لما المستخدم يعمل paste لقطعة كود فيها `\x03` (وده Ctrl+C كـ byte خام).
 
-الـ output types الخاصة بالـ parser بتكوّن discriminated union (type بيجمع كذا حالة، وكل حالة ليها علامة بتميزها) نظيف:
+الـ output types الخاصة بالـ parser بتكوّن discriminated union نظيف:
 
 ```typescript
 type ParsedKey = {
@@ -181,7 +181,7 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
 ]
 ```
 
-الـ bindings الخاصة بكل platform بتتحدد وقت التعريف. عمل paste لصورة هو `ctrl+v` على macOS/Linux لكنه `alt+v` على Windows (لأن `ctrl+v` هناك هو الـ paste الخاص بالنظام). والتنقل بين الـ modes هو `shift+tab` على الـ terminals اللي بتدعم الـ VT mode لكنه `meta+m` على Windows Terminal من غيره. والـ bindings اللي وراها feature flags (مفاتيح بتشغّل أو تقفل ميزات) زي الـ quick search والـ voice mode والـ terminal panel بتتضاف بشكل شرطي.
+الـ bindings الخاصة بكل platform بتتحدد وقت التعريف. عمل paste لصورة هو `ctrl+v` على macOS/Linux لكنه `alt+v` على Windows (لأن `ctrl+v` هناك هو الـ paste الخاص بالنظام). والتنقل بين الـ modes هو `shift+tab` على الـ terminals اللي بتدعم الـ VT mode لكنه `meta+m` على Windows Terminal من غيره. والـ bindings اللي وراها feature flags زي الـ quick search والـ voice mode والـ terminal panel بتتضاف بشكل شرطي.
 
 المستخدم يقدر يغيّر أي binding عن طريق `~/.claude/keybindings.json`. الـ parser بيقبل أسماء بديلة للـ modifiers (`ctrl`/`control`، و `alt`/`opt`/`option`، و `cmd`/`command`/`super`/`win`)، وأسماء بديلة للمفاتيح (`esc` -> `escape`، و `return` -> `enter`)، وكتابة الـ chords (خطوات مفصولة بمسافة زي `ctrl+k ctrl+s`)، و actions بقيمة null عشان تفكّ ربط المفاتيح الافتراضية. والـ null action مش زي إنك ما تعرّفش binding أصلًا: هو بيمنع الـ binding الافتراضي صراحةً من إنه يشتغل، وده مهم للمستخدمين اللي محتاجين يرجّعوا مفتاح معين لاستخدام الـ terminal نفسه.
 
@@ -234,7 +234,7 @@ export const DEFAULT_BINDINGS: KeybindingBlock[] = [
 6. في حالة `unbound`: مسح الـ chord. ده فكّ ربط صريح (المستخدم حدد الـ action بـ `null`)، فالـ propagation بيتوقف لكن مفيش handler بيشتغل
 7. في حالة `none`: تمرير الـ event للـ handlers التانية
 
-استراتيجية "آخر واحد يكسب" في الـ resolution معناها إن لو الـ bindings الافتراضية و bindings المستخدم الاتنين عرّفوا `ctrl+k` في الـ context `Chat`، الـ binding الخاص بالمستخدم هو اللي بيتقدّم. وده بيتقيّم وقت المطابقة عن طريق المرور على الـ bindings بترتيب تعريفها والاحتفاظ بآخر مطابقة، بدل بناء override map وقت التحميل. والميزة: التعديلات الخاصة بكل context بتتركّب مع بعض بشكل طبيعي. المستخدم يقدر يغيّر `enter` في `Chat` من غير ما يأثر على `enter` في `Confirmation`.
+استراتيجية "آخر واحد يكسب" في الـ resolution معناها إن لو الـ bindings الافتراضية و bindings المستخدم الاثنين عرّفوا `ctrl+k` في الـ context `Chat`، الـ binding الخاص بالمستخدم هو اللي بيتقدّم. وده بيتقيّم وقت المطابقة عن طريق المرور على الـ bindings بترتيب تعريفها والاحتفاظ بآخر مطابقة، بدل بناء override map وقت التحميل. والميزة: التعديلات الخاصة بكل context بتتركّب مع بعض بشكل طبيعي. المستخدم يقدر يغيّر `enter` في `Chat` من غير ما يأثر على `enter` في `Confirmation`.
 
 ---
 
@@ -331,7 +331,7 @@ type TransitionResult = {
 }
 ```
 
-الـ side effects (آثار جانبية خارج الـ function نفسها) بتترجّع، مش بتتنفذ. الـ function `transition` هي pure function (function نتيجتها بتعتمد على مدخلاتها بس، من غير side effects): لو ادّيتها حالة ومفتاح، بترجّع الحالة اللي بعدها واختياريًا closure بينفذ الفعل. واللي استدعاها هو اللي بيقرر إمتى يشغّل الـ effect. وده بيخلّي اختبار الـ state machine سهل جدًا: ادّيها حالات ومفاتيح، واعمل assert على الحالات اللي رجعت، وتجاهل الـ closures. ومعناه كمان إن الـ function `transition` مش معتمدة على الـ state الخاص بالـ editor، ولا موضع الـ cursor، ولا محتوى الـ buffer. التفاصيل دي الـ closure بيلتقطها لحظة إنشائه، مش الـ state machine بيستهلكها لحظة الـ transition.
+الـ side effects بتترجّع، مش بتتنفذ. الـ function `transition` هي pure function: لو ادّيتها حالة ومفتاح، بترجّع الحالة اللي بعدها واختياريًا closure بينفذ الفعل. واللي استدعاها هو اللي بيقرر إمتى يشغّل الـ effect. وده بيخلّي اختبار الـ state machine سهل جدًا: ادّيها حالات ومفاتيح، واعمل assert على الحالات اللي رجعت، وتجاهل الـ closures. ومعناه كمان إن الـ function `transition` مش معتمدة على الـ state الخاص بالـ editor، ولا موضع الـ cursor، ولا محتوى الـ buffer. التفاصيل دي الـ closure بيلتقطها لحظة إنشائه، مش الـ state machine بيستهلكها لحظة الـ transition.
 
 الـ handler `fromIdle` هو نقطة الدخول وبيغطي مفردات vim كاملة:
 

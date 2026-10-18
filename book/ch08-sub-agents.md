@@ -6,13 +6,13 @@
 
 نظام الـ sub-agents في Claude Code بيخلّي الـ model يطلب مساعدة. لما الـ parent agent يقابل task التفويض أنسب لها: بحث في الـ codebase مش المفروض يلوّث المحادثة الأساسية، أو مرحلة verification محتاجة تفكير عدائي (يدوّر على الأخطاء عمدًا)، أو مجموعة تعديلات مستقلة ممكن تشتغل بالتوازي. في الحالات دي بيستدعي الـ tool `Agent`. الاستدعاء ده بيعمل spawn لـ child: agent مستقل بالكامل، ليه الـ conversation loop الخاص بيه، ومجموعة الـ tools الخاصة بيه، وحدود الصلاحيات الخاصة بيه، والـ abort controller الخاص بيه. الـ child بينفذ شغله ويرجّع نتيجة. الـ parent عمره ما بيشوف الـ reasoning الداخلي للـ child، بيشوف الـ output النهائي بس.
 
-ده مش مجرد feature للراحة. ده الأساس اللي الـ architecture كلها واقفة عليه: من استكشاف الملفات بالتوازي، لهياكل الـ coordinator-worker، لفرق الـ multi-agent swarm (مجموعة agents بتشتغل مع بعض على نفس الهدف). وكله بيعدّي من ملفين: `AgentTool.tsx` اللي بيعرّف الـ interface اللي الـ model بيشوفها، و `runAgent.ts` اللي بينفذ الـ lifecycle (دورة حياة التنفيذ).
+ده مش مجرد feature للراحة. ده الأساس اللي الـ architecture كلها واقفة عليه: من استكشاف الملفات بالتوازي، لهياكل الـ coordinator-worker، لفرق الـ multi-agent swarm. وكله بيعدّي من ملفين: `AgentTool.tsx` اللي بيعرّف الـ interface اللي الـ model بيشوفها، و `runAgent.ts` اللي بينفذ الـ lifecycle.
 
 تحدي التصميم هنا كبير. الـ sub-agent محتاج context كافي عشان يعمل شغله، لكن مش لدرجة إنه يضيّع tokens على معلومات ملهاش علاقة. محتاج حدود صلاحيات صارمة بما يكفي للأمان، ومرنة بما يكفي عشان يكون مفيد. ومحتاج lifecycle management بينظّف كل resource لمسها، من غير ما يطلب من اللي استدعاه إنه يفتكر إيه اللي لازم يتنظّف. وكل ده لازم يشتغل مع طيف كامل من أنواع الـ agents: من باحث read-only رخيص وسريع شغال بـ Haiku، لـ verification agent غالي ودقيق شغال بـ Opus وبينفذ tests عدائية في الخلفية.
 
-الفصل ده بيتتبع المسار من لحظة ما الـ model يقول "I need help" (أنا محتاج مساعدة) لحد ما يبقى عندنا child agent شغال بالكامل. هنفحص الـ tool definition اللي الـ model بيشوفه، والـ lifecycle من 15 خطوة اللي بيبني بيئة التنفيذ، والـ 6 built-in agent types وكل واحد منها متحسّن لإيه، ونظام الـ frontmatter (الـ metadata اللي في أول الملف بين `---`) اللي بيخلّي المستخدمين يعرّفوا agents مخصصة، ومبادئ التصميم اللي بتطلع من كل ده.
+الفصل ده بيتتبع المسار من لحظة ما الـ model يقول "I need help" (أنا محتاج مساعدة) لحد ما يبقى عندنا child agent شغال بالكامل. هنفحص الـ tool definition اللي الـ model بيشوفه، والـ lifecycle من 15 خطوة اللي بيبني بيئة التنفيذ، والـ 6 built-in agent types وكل واحد منها متحسّن لإيه، ونظام الـ frontmatter اللي بيخلّي المستخدمين يعرّفوا agents مخصصة، ومبادئ التصميم اللي بتطلع من كل ده.
 
-ملاحظة عن المصطلحات: في الفصل ده كله، "parent" هو الـ agent اللي بيستدعي الـ tool `Agent`، و "child" هو الـ agent اللي بيتعمله spawn. الـ parent غالبًا (لكن مش دائمًا) هو الـ REPL agent الرئيسي. في الـ coordinator mode، الـ coordinator (agent وظيفته يوزّع الشغل على agents تانية ويجمع النتائج) بيعمل spawn لـ workers، ودول children. وفي الحالات المتداخلة، الـ child نفسه يقدر يعمل spawn لـ grandchildren، ونفس الـ lifecycle بيتطبق عليهم بشكل recursive.
+ملاحظة عن المصطلحات: في الفصل ده كله، "parent" هو الـ agent اللي بيستدعي الـ tool `Agent`، و "child" هو الـ agent اللي بيتعمله spawn. الـ parent غالبًا (لكن مش دائمًا) هو الـ REPL agent الرئيسي. في الـ coordinator mode، الـ coordinator بيعمل spawn لـ workers، ودول children. وفي الحالات المتداخلة، الـ child نفسه يقدر يعمل spawn لـ grandchildren، ونفس الـ lifecycle بيتطبق عليهم بشكل recursive.
 
 الـ orchestration layer بيمتد على حوالي 40 ملف موزعة على `tools/AgentTool/` و `tasks/` و `coordinator/` و `tools/SendMessageTool/` و `utils/swarm/`. الفصل ده بيركّز على آليات الـ spawning: الـ AgentTool definition والـ runAgent lifecycle. والفصل الجاي بيغطي الـ runtime: تتبّع التقدم، واسترجاع النتائج، و patterns التنسيق بين أكثر من agent.
 
@@ -20,7 +20,7 @@
 
 ## الـ AgentTool Definition
 
-الـ tool `AgentTool` مسجّلة باسم `"Agent"`، ومعاها alias قديم `"Task"` عشان الـ backward compatibility مع الـ transcripts (سجلات المحادثة) القديمة وقواعد الصلاحيات وإعدادات الـ hooks. مبنية بالـ factory (function وظيفتها تنشئ الـ object المناسب وترجّعه) العادية `buildTool()`، لكن الـ schema الخاص بيها أكثر ديناميكية من أي tool تانية في النظام.
+الـ tool `AgentTool` مسجّلة باسم `"Agent"`، ومعاها alias قديم `"Task"` عشان الـ backward compatibility مع الـ transcripts (سجلات المحادثة) القديمة وقواعد الصلاحيات وإعدادات الـ hooks. مبنية بالـ factory العادية `buildTool()`، لكن الـ schema الخاص بيها أكثر ديناميكية من أي tool تانية في النظام.
 
 ### الـ Input Schema
 
@@ -46,9 +46,9 @@
 | `isolation` | `enum('worktree','remote')` | استراتيجية عزل الـ filesystem |
 | `cwd` | `string` | مسار مطلق بيستبدل الـ working directory |
 
-الـ multi-agent fields بتفعّل الـ swarm pattern اللي الفصل 9 بيغطيه: agents ليها أسماء وتقدر تبعت رسائل لبعض عن طريق `SendMessage({to: name})` وهي شغالة بشكل concurrent. والـ isolation fields بتوفّر الأمان على مستوى الـ filesystem: الـ worktree isolation بيعمل git worktree (نسخة عمل منفصلة من الـ repo في مجلد تاني) مؤقت، فالـ agent بيشتغل على نسخة من الـ repository. وده بيمنع تعارض التعديلات لما أكثر من agent يشتغلوا على نفس الـ codebase في نفس الوقت.
+الـ multi-agent fields بتفعّل الـ swarm pattern اللي الفصل 9 بيغطيه: agents ليها أسماء وتقدر تبعت رسائل لبعض عن طريق `SendMessage({to: name})` وهي شغالة بشكل concurrent. والـ isolation fields بتوفّر الأمان على مستوى الـ filesystem: الـ worktree isolation بيعمل git worktree مؤقت، فالـ agent بيشتغل على نسخة من الـ repository. وده بيمنع تعارض التعديلات لما أكثر من agent يشتغلوا على نفس الـ codebase في نفس الوقت.
 
-اللي بيخلّي الـ schema ده غير عادي إنه **شكله بيتحدد ديناميكيًا بالـ feature flags** (مفاتيح بتشغّل أو تقفل ميزات):
+اللي بيخلّي الـ schema ده غير عادي إنه **شكله بيتحدد ديناميكيًا بالـ feature flags**:
 
 ```typescript
 // Pseudocode — illustrates the feature-gated schema pattern
@@ -66,12 +66,12 @@ inputSchema = lazySchema(() => {
 
 ### الـ Output Schema
 
-الـ output عبارة عن discriminated union (type بيجمع كذا حالة، وكل حالة ليها علامة بتميزها) ليه حالتين عامتين:
+الـ output عبارة عن discriminated union ليه حالتين عامتين:
 
 - `{ status: 'completed', prompt, ...AgentToolResult }` -- إتمام synchronous ومعاه الـ output النهائي للـ agent
 - `{ status: 'async_launched', agentId, description, prompt, outputFile }` -- تأكيد إن الـ agent اتشغّل في الخلفية
 
-فيه حالتين داخليتين إضافيتين (`TeammateSpawnedOutput` و `RemoteLaunchedOutput`)، لكنهم مستبعدين من الـ schema اللي بيتعمله export عشان يسمحوا بالـ dead code elimination (حذف الكود اللي مستحيل يتنفذ) في الـ external builds. الـ bundler بيشيل الحالتين دول والـ code paths المرتبطة بيهم لما الـ feature flags المقابلة تكون مقفولة، فالـ binary اللي بيتوزع بيبقى أصغر.
+فيه حالتين داخليتين إضافيتين (`TeammateSpawnedOutput` و `RemoteLaunchedOutput`)، لكنهم مستبعدين من الـ schema اللي بيتعمله export عشان يسمحوا بالـ dead code elimination في الـ external builds. الـ bundler بيشيل الحالتين دول والـ code paths المرتبطة بيهم لما الـ feature flags المقابلة تكون مقفولة، فالـ binary اللي بيتوزع بيبقى أصغر.
 
 الحالة `async_launched` مهمة بسبب اللي بتشيله معاها: مسار الـ `outputFile` اللي نتائج الـ agent هتتكتب فيه لما يخلص. وده بيخلّي الـ parent (أو أي مستهلك تاني) يعمل poll على الملف أو يراقبه عشان يجيب النتائج، وبيوفر قناة تواصل مبنية على الـ filesystem بتصمد حتى لو الـ process اتعملها restart.
 
@@ -150,7 +150,7 @@ inputSchema = lazySchema(() => {
 
 ## الـ runAgent Lifecycle
 
-الـ function `runAgent()` في `runAgent.ts` عبارة عن async generator (function بترجّع قيمها واحدة واحدة بشكل asynchronous) بيحرّك الـ lifecycle الكامل للـ sub-agent. بيعمل yield لـ objects من النوع `Message` أثناء ما الـ agent شغال. كل sub-agent، سواء fork أو built-in أو custom أو coordinator worker، بيعدّي من الـ function الواحدة دي. الـ function حوالي 400 سطر، وكل سطر فيها ليه سبب.
+الـ function `runAgent()` في `runAgent.ts` عبارة عن async generator بيحرّك الـ lifecycle الكامل للـ sub-agent. بيعمل yield لـ objects من النوع `Message` أثناء ما الـ agent شغال. كل sub-agent، سواء fork أو built-in أو custom أو coordinator worker، بيعدّي من الـ function الواحدة دي. الـ function حوالي 400 سطر، وكل سطر فيها ليه سبب.
 
 الـ signature الخاص بالـ function بيكشف تعقيد المشكلة:
 
@@ -179,7 +179,7 @@ export async function* runAgent({
 
 17 parameters. كل واحد منهم بيمثّل بُعد من أبعاد الاختلاف اللي الـ lifecycle لازم يتعامل معاها. ده مش over-engineering، ده النتيجة الطبيعية لإن function واحدة بتخدم fork agents و built-in agents و custom agents و sync agents و async agents و agents معزولة في worktree و coordinator workers. البديل هيكون 7 lifecycle functions مختلفة بمنطق مكرر، وده أسوأ.
 
-الـ object `override` مهم بشكل خاص: هو الـ escape hatch (مخرج استثنائي من القاعدة) للـ fork agents والـ agents اللي بيتعملها resume، اللي محتاجة تحقن قيم محسوبة مسبقًا (الـ system prompt، والـ abort controller، والـ agent ID) في الـ lifecycle من غير ما تعيد حسابها.
+الـ object `override` مهم بشكل خاص: هو الـ escape hatch للـ fork agents والـ agents اللي بيتعملها resume، اللي محتاجة تحقن قيم محسوبة مسبقًا (الـ system prompt، والـ abort controller، والـ agent ID) في الـ lifecycle من غير ما تعيد حسابها.
 
 ودي الـ 15 خطوة.
 
@@ -244,9 +244,9 @@ const resolvedUserContext = shouldOmitClaudeMd
 
 ملفات CLAUDE.md فيها تعليمات خاصة بالمشروع عن الـ commit messages، و conventions الـ PRs، وقواعد الـ lint، ومعايير الكود. الـ search agent اللي read-only مش محتاج أي حاجة من ده: مش بيقدر يعمل commit، ولا ينشئ PRs، ولا يعدّل ملفات. الـ parent agent عنده الـ context الكامل وهو اللي هيفسر نتائج البحث. حذف CLAUDE.md هنا بيوفر مليارات الـ tokens في الأسبوع على مستوى كل المستخدمين، وده خفض إجمالي في التكلفة بيبرر التعقيد الإضافي اللي بيجيبه حقن الـ context بشكل شرطي.
 
-وبالمثل، الـ agents من نوع Explore و Plan بيتشال منها `gitStatus` من الـ system context. الـ snapshot (نسخة مجمّدة في لحظة معينة) الخاص بالـ git status اللي بيتاخد في بداية الـ session ممكن يوصل لـ 40KB، وموصوف صراحةً إنه stale. ولو الـ agents دي محتاجة معلومات git، تقدر تشغّل `git status` بنفسها وتجيب بيانات حديثة.
+وبالمثل، الـ agents من نوع Explore و Plan بيتشال منها `gitStatus` من الـ system context. الـ snapshot الخاص بالـ git status اللي بيتاخد في بداية الـ session ممكن يوصل لـ 40KB، وموصوف صراحةً إنه stale. ولو الـ agents دي محتاجة معلومات git، تقدر تشغّل `git status` بنفسها وتجيب بيانات حديثة.
 
-ودي مش premature optimizations. مع 34 مليون spawn لـ Explore في الأسبوع، كل token زيادة بيتراكم لتكلفة ملموسة. الـ kill-switch (زر إيقاف طوارئ) هنا هو `tengu_slim_subagent_claudemd`، وقيمته الافتراضية true، لكن ممكن يتقلب عن طريق GrowthBook لو الحذف سبّب regressions.
+ودي مش premature optimizations. مع 34 مليون spawn لـ Explore في الأسبوع، كل token زيادة بيتراكم لتكلفة ملموسة. الـ kill-switch هنا هو `tengu_slim_subagent_claudemd`، وقيمته الافتراضية true، لكن ممكن يتقلب عن طريق GrowthBook لو الحذف سبّب regressions.
 
 ### الخطوة 5: الـ Permission Isolation
 
@@ -300,7 +300,7 @@ const agentGetAppState = () => {
 
 **تجنّب الـ prompts.** الـ background agents مش بتقدر تعرض permission dialogs، لأن مفيش terminal متصل بيها. فـ `shouldAvoidPermissionPrompts` بيتحدد على `true`، وده بيخلّي نظام الصلاحيات يرفض تلقائيًا بدل ما يوقف وينتظر. الاستثناء هو الـ mode `bubble`: الـ agents دي بتظهر الـ prompts في terminal الـ parent، فتقدر تعرض prompts دائمًا بغض النظر عن كونها sync أو async.
 
-**ترتيب الفحوصات الآلية.** الـ background agents اللي *تقدر* تعرض prompts (في الـ bubble mode) بتحدد `awaitAutomatedChecksBeforeDialog`. وده معناه إن الـ classifier (model صغير بيصنّف الطلب: مسموح ولا لأ) والـ permission hooks بيشتغلوا أولًا، والمستخدم مش بيتقاطع إلا لو الحل الآلي فشل. في الشغل اللي في الخلفية، الانتظار ثانية زيادة للـ classifier مش مشكلة، والمستخدم مش المفروض يتقاطع من غير داعي.
+**ترتيب الفحوصات الآلية.** الـ background agents اللي *تقدر* تعرض prompts (في الـ bubble mode) بتحدد `awaitAutomatedChecksBeforeDialog`. وده معناه إن الـ classifier والـ permission hooks بيشتغلوا أولًا، والمستخدم مش بيتقاطع إلا لو الحل الآلي فشل. في الشغل اللي في الخلفية، الانتظار ثانية زيادة للـ classifier مش مشكلة، والمستخدم مش المفروض يتقاطع من غير داعي.
 
 **تحديد نطاق صلاحيات الـ tools.** لما `allowedTools` تتمرّر، بتستبدل قواعد السماح على مستوى الـ session بالكامل. وده بيمنع موافقات الـ parent من إنها تتسرب للـ agents المحدودة النطاق. لكن الصلاحيات على مستوى الـ SDK (من الـ CLI flag `--allowedTools`) بتفضل محفوظة، لأنها بتمثّل السياسة الأمنية الصريحة للتطبيق اللي بيستضيف Claude Code، ولازم تتطبق في كل مكان.
 
@@ -553,7 +553,7 @@ graph TD
 
 **الـ Backgrounding.** الـ sync agent اللي بياخد وقت طويل ممكن يتنقل للخلفية في نص التنفيذ. الـ iterator بيتسلّم من المقدمة لـ async context: بدل ما `AgentTool.call()` تعمل iterate عليه، `runAsyncAgentLifecycle()` بتستلمه. الـ agent مش بيبدأ من الأول، بيكمّل من المكان اللي وصل له.
 
-**تتبّع التقدم.** كل رسالة بيتعملها yield هي نقطة مراقبة. الـ async lifecycle wrapper بيستخدم نقاط المراقبة دي عشان يحدّث الـ task state machine (مجموعة حالات محددة وانتقالات بينها)، ويحسب نسب التقدم، ويولّد إشعارات لما الـ agent يخلص.
+**تتبّع التقدم.** كل رسالة بيتعملها yield هي نقطة مراقبة. الـ async lifecycle wrapper بيستخدم نقاط المراقبة دي عشان يحدّث الـ task state machine، ويحسب نسب التقدم، ويولّد إشعارات لما الـ agent يخلص.
 
 ---
 
@@ -603,7 +603,7 @@ graph TD
 
 بيتستبعد لما الـ entrypoint يكون SDK (سواء TypeScript أو Python أو CLI)، لأن مستخدمي الـ SDK مش بيسألوا Claude Code إزاي يستخدموا Claude Code. هم بيبنوا tools خاصة بيهم فوقه.
 
-الـ Guide agent حالة دراسية مثيرة في تصميم الـ agents لأنه الـ built-in agent الوحيد اللي الـ system prompt الخاص بيه ديناميكي بشكل بيعتمد على مشروع المستخدم. هو محتاج يعرف إيه المعدّ عشان يجاوب على "how do I configure X?" بشكل فعّال. وده بيخلّي الـ function `getSystemPrompt()` الخاصة بيه أكثر تعقيدًا من غيرها، لكن الـ trade-off (مفاضلة: بتكسب حاجة وبتدفع ثمنها في حاجة تانية) يستاهل: الـ documentation agent اللي مش بيعرف إيه اللي المستخدم أعدّه أصلًا بيدّي إجابات أسوأ من اللي يعرف.
+الـ Guide agent حالة دراسية مثيرة في تصميم الـ agents لأنه الـ built-in agent الوحيد اللي الـ system prompt الخاص بيه ديناميكي بشكل بيعتمد على مشروع المستخدم. هو محتاج يعرف إيه المعدّ عشان يجاوب على "how do I configure X?" بشكل فعّال. وده بيخلّي الـ function `getSystemPrompt()` الخاصة بيه أكثر تعقيدًا من غيرها، لكن الـ trade-off يستاهل: الـ documentation agent اللي مش بيعرف إيه اللي المستخدم أعدّه أصلًا بيدّي إجابات أسوأ من اللي يعرف.
 
 ### Statusline Setup
 

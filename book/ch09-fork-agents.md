@@ -6,7 +6,7 @@
 
 في fork عادي على محادثة سخنة (الـ cache الخاص بيها متملي وجاهز)، الـ shared prefix ممكن يكون 80,000 tokens. والتوجيه الخاص بكل child ممكن يكون 200 tokens. ده تداخل بنسبة 99.75%. الـ prompt cache الخاص بـ Anthropic بيدّي خصم 90% على الـ input tokens اللي جاية من الـ cache. لو قدرت تخلّي الـ 80,000 tokens دول يعملوا cache hit للـ children من 2 لـ 5، تبقى قللت تكلفة الـ input للـ 4 requests دول بنسبة 90%. وبالنسبة للـ parent، ده الفرق بين إنك تدفع $4 وإنك تدفع $0.50 على نفس الـ parallel dispatch.
 
-المشكلة إن الـ prompt caching بيشتغل على مستوى الـ byte بالضبط. مش "متشابه بما فيه الكفاية". ولا "نفس المعنى". الـ bytes لازم تتطابق، حرف بحرف، من أول byte في الـ system prompt لحد آخر byte قبل ما المحتوى الخاص بكل child يبدأ يختلف. مسافة زيادة واحدة، أو tool definition واحد اتغير ترتيبه، أو feature flag (مفتاح بيشغّل أو يقفل ميزة) قديم غيّر جزء من الـ system prompt، والـ cache بيعمل miss. الـ prefix كله بيتعالج تاني بالسعر الكامل.
+المشكلة إن الـ prompt caching بيشتغل على مستوى الـ byte بالضبط. مش "متشابه بما فيه الكفاية". ولا "نفس المعنى". الـ bytes لازم تتطابق، حرف بحرف، من أول byte في الـ system prompt لحد آخر byte قبل ما المحتوى الخاص بكل child يبدأ يختلف. مسافة زيادة واحدة، أو tool definition واحد اتغير ترتيبه، أو feature flag قديم غيّر جزء من الـ system prompt، والـ cache بيعمل miss. الـ prefix كله بيتعالج تاني بالسعر الكامل.
 
 الـ fork agents (نسخ من الـ agent بتشترك معاه في نفس الـ context) هي إجابة Claude Code على القيد ده. هي مش مجرد تسهيل لـ "spawn a child with context" (اعمل spawn لـ child معاه الـ context). هي آلية لاستغلال الـ prompt cache متنكرة في شكل ميزة orchestration. كل قرار تصميم في نظام الـ fork بيرجع لسؤال واحد: إزاي نضمن prefixes من نوع byte-identical (متطابقة byte بـ byte) بين الـ children المتوازية؟
 
@@ -128,11 +128,11 @@ if (effectiveType === undefined) {
 }
 ```
 
-ده الـ fast path (طريق مختصر للحالات البسيطة). بيفحص string واحد في الـ options object.
+ده الـ fast path. بيفحص string واحد في الـ options object.
 
-**الـ guard الاحتياطي: فحص الرسائل.** منع الـ fork بيعتمد على 2 guards: الـ tag `querySource` اللي بيتضبط وقت الـ spawn (الـ fast path: مقارنة string واحد)، و fallback (خطة بديلة لما الأساسية تفشل) بيفحص سجل الرسائل بحثًا عن الـ boilerplate XML tag. الـ fallback موجود لأن قيمة `querySource` بتصمد بعد الـ autocompact، لكن في حالات نادرة ماكانتش بتتمرر صح، وهنا الـ fallback اللي بيفحص الرسائل بيلقط الـ recursion. دي حماية مزدوجة: تكلفة الفحص (مسح الرسائل) تافهة مقارنة بتكلفة الـ recursive forking لو حصل بالغلط (إنفاق على الـ API من غير سقف).
+**الـ guard الاحتياطي: فحص الرسائل.** منع الـ fork بيعتمد على 2 guards: الـ tag `querySource` اللي بيتضبط وقت الـ spawn (الـ fast path: مقارنة string واحد)، و fallback بيفحص سجل الرسائل بحثًا عن الـ boilerplate XML tag. الـ fallback موجود لأن قيمة `querySource` بتصمد بعد الـ autocompact، لكن في حالات نادرة ماكانتش بتتمرر صح، وهنا الـ fallback اللي بيفحص الرسائل بيلقط الـ recursion. دي حماية مزدوجة: تكلفة الفحص (مسح الرسائل) تافهة مقارنة بتكلفة الـ recursive forking لو حصل بالغلط (إنفاق على الـ API من غير سقف).
 
-ليه الـ fallback؟ لأن Claude Code فيه ميزة autocompact (ضغط المحادثة عشان تفضل داخل الـ context window) بتعيد كتابة الـ message array لما الـ context يطوّل زيادة. الـ autocompact ممكن يعيد كتابة محتوى الرسائل لكنه بيحافظ على قيمة `querySource` في الـ options. نظريًا، قيمة `querySource` لوحدها كفاية. عمليًا، الـ fallback اللي بيفحص الرسائل بيلقط الحالات النادرة اللي `querySource` ماتمررتش فيها صح. حماية مزدوجة: تكلفة الفحص (مسح الرسائل) تافهة مقارنة بتكلفة الـ recursive forking لو حصل بالغلط (إنفاق على الـ API من غير سقف).
+ليه الـ fallback؟ لأن Claude Code فيه ميزة autocompact بتعيد كتابة الـ message array لما الـ context يطوّل زيادة. الـ autocompact ممكن يعيد كتابة محتوى الرسائل لكنه بيحافظ على قيمة `querySource` في الـ options. نظريًا، قيمة `querySource` لوحدها كفاية. عمليًا، الـ fallback اللي بيفحص الرسائل بيلقط الحالات النادرة اللي `querySource` ماتمررتش فيها صح. حماية مزدوجة: تكلفة الفحص (مسح الرسائل) تافهة مقارنة بتكلفة الـ recursive forking لو حصل بالغلط (إنفاق على الـ API من غير سقف).
 
 ---
 
@@ -163,7 +163,7 @@ while (true) {
 
 5. استدعاء `call()` الأصلي الـ sync بيرجّع `{ status: 'async_launched' }`، والـ parent بيكمّل محادثته.
 
-مفيش شغل بيضيع، لأن سجل الرسائل هو نفسه الـ state الخاص بالـ agent. الـ sidechain transcript (سجل المحادثة) على الـ disk فيه كل رسالة الـ agent أنتجها. والـ async instance الجديد بيعيد تشغيل السجل ده وبيكمّل من المكان اللي الـ sync instance وقف فيه.
+مفيش شغل بيضيع، لأن سجل الرسائل هو نفسه الـ state الخاص بالـ agent. الـ sidechain transcript على الـ disk فيه كل رسالة الـ agent أنتجها. والـ async instance الجديد بيعيد تشغيل السجل ده وبيكمّل من المكان اللي الـ sync instance وقف فيه.
 
 ---
 
@@ -183,7 +183,7 @@ while (true) {
 
 الـ fork واحد من كذا orchestration mode، وبيتستبعد عن قصد في 3 حالات:
 
-**الـ coordinator mode.** الـ coordinator mode والـ fork mode بينهم mutual exclusion (الاتنين ماينفعش يشتغلوا مع بعض). الـ coordinator (agent وظيفته يوزّع الشغل على agents تانية ويجمع النتائج) عنده نموذج تفويض منظّم: بيحتفظ بخطة، وبيوزّع tasks على الـ workers بـ prompts صريحة، وبيتابع التقدم. أسلوب الـ fork "inherit everything" (ورّث كل حاجة) هيقوّض ده. الـ coordinator المعمول له fork هيورث الـ system prompt الخاص بالـ parent coordinator (اللي بيقول "you are the coordinator, delegate work"، يعني إنت الـ coordinator، فوّض الشغل)، والـ child هيحاول ينسّق بدل ما ينفّذ. الـ function `isForkSubagentEnabled()` بتفحص `isCoordinatorMode()` الأول وبترجّع false لو كان مفعّل.
+**الـ coordinator mode.** الـ coordinator mode والـ fork mode بينهم mutual exclusion (الاتنين ماينفعش يشتغلوا مع بعض). الـ coordinator عنده نموذج تفويض منظّم: بيحتفظ بخطة، وبيوزّع tasks على الـ workers بـ prompts صريحة، وبيتابع التقدم. أسلوب الـ fork "inherit everything" (ورّث كل حاجة) هيقوّض ده. الـ coordinator المعمول له fork هيورث الـ system prompt الخاص بالـ parent coordinator (اللي بيقول "you are the coordinator, delegate work"، يعني إنت الـ coordinator، فوّض الشغل)، والـ child هيحاول ينسّق بدل ما ينفّذ. الـ function `isForkSubagentEnabled()` بتفحص `isCoordinatorMode()` الأول وبترجّع false لو كان مفعّل.
 
 **الـ sessions غير التفاعلية.** مستهلكي الـ SDK والـ API (الـ mode `--print`، و Claude Agent SDK) بيشتغلوا من غير terminal. وإعداد `permissionMode: 'bubble'` الخاص بالـ fork بيطلّع الـ permission prompts في terminal الـ parent، وده مش موجود في الـ mode غير التفاعلي. وبدل بناء مسار صلاحيات منفصل، مسار الـ fork بيتعطّل ببساطة. مستهلكي الـ SDK بيستخدموا اختيار `subagent_type` صريح بدل منه.
 

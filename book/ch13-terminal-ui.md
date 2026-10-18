@@ -2,13 +2,13 @@
 
 ## ليه نبني Renderer مخصوص؟
 
-الـ terminal مش browser. مفيش DOM، ولا CSS engine، ولا compositor، ولا retained-mode graphics pipeline. اللي موجود هو stream من الـ bytes رايح للـ stdout، و stream من الـ bytes جاي من الـ stdin. وكل حاجة بين الـ streams الاتنين دول لازم تتعمل من الصفر: الـ layout، والـ styling، والـ diffing، والـ hit-testing، والـ scrolling، والتحديد.
+الـ terminal مش browser. مفيش DOM، ولا CSS engine، ولا compositor، ولا retained-mode graphics pipeline. اللي موجود هو stream من الـ bytes رايح للـ stdout، و stream من الـ bytes جاي من الـ stdin. وكل حاجة بين المسارين دول لازم تتعمل من الصفر: الـ layout، والـ styling، والـ diffing، والـ hit-testing، والـ scrolling، والتحديد.
 
 محتاج Claude Code لـ UI من نوع reactive. عنده prompt input، و streaming markdown output، و permission dialogs، و progress spinners، وقوايم رسائل بتتعمل لها scroll، وتظليل نتائج البحث، و editor بـ vim mode. React هو الاختيار الطبيعي عشان تعرّف component tree من النوع ده. لكن React محتاج host environment يعمل render فيها، والـ terminals مش بتوفر واحدة.
 
 Ink هو الجواب المعتاد: React renderer للـ terminals، مبني على Yoga للـ flexbox layout. بدأ Claude Code بـ Ink، وبعدين عمل له fork وغيّره لدرجة إنه ماعادش شبه الأصل. النسخة الأصلية بتخصص object واحد في JavaScript لكل cell في كل frame. على terminal مقاسه 200x120، ده معناه 24,000 object بيتعملوا وبيتجمعوا بالـ garbage collector كل 16ms. وبتعمل diff على مستوى الـ string، يعني بتقارن صفوف كاملة من النص المشفّر بـ ANSI. ومفيهاش أي مفهوم لـ blit optimization، ولا double buffering، ولا cell-level dirty tracking. لو الكلام عن CLI dashboard بسيط بيتحدث مرة كل ثانية، ده كفاية. لكن لو الكلام عن LLM agent بيعمل stream للـ tokens بسرعة 60fps والمستخدم في نفس الوقت بيتحرك في محادثة فيها مئات الرسائل، ده مش هينفع من الأساس.
 
-اللي باقي في Claude Code هو rendering engine مخصوص بيشترك مع Ink في نفس الـ DNA الفكري (React reconciler، و Yoga layout، و ANSI output)، لكنه بيعيد كتابة الـ critical path (سلسلة الخطوات اللي بتحدد الزمن الكلي): packed typed arrays بدل object لكل cell، و pool-based string interning بدل string لكل frame، و double-buffered rendering مع cell-level diffing، و optimizer بيدمج الكتابات المتجاورة على الـ terminal في أقل عدد ممكن من الـ escape sequences.
+اللي باقي في Claude Code هو rendering engine مخصوص بيشترك مع Ink في نفس الـ DNA الفكري (React reconciler، و Yoga layout، و ANSI output)، لكنه بيعيد كتابة الـ critical path: packed typed arrays بدل object لكل cell، و pool-based string interning بدل string لكل frame، و double-buffered rendering مع cell-level diffing، و optimizer بيدمج الكتابات المتجاورة على الـ terminal في أقل عدد ممكن من الـ escape sequences.
 
 النتيجة بتشتغل بسرعة 60fps على terminal عرضه 200 عمود، وفي نفس الوقت بتعمل stream للـ tokens الجاية من Claude. وعشان نفهم إزاي، محتاجين نبص على 4 طبقات: الـ custom DOM اللي React بيعمل عليه reconcile، والـ rendering pipeline اللي بيحوّل الـ DOM ده لـ output على الـ terminal، وإدارة الذاكرة المبنية على الـ pools اللي بتخلّي النظام عايش في sessions بتطول لساعات من غير ما يغرق في الـ garbage collection، والـ component architecture اللي بتربط كل ده ببعض.
 
@@ -108,13 +108,13 @@ flowchart LR
 
 **المرحلة 2: من الـ DOM للشاشة.** الـ renderer بيمشي على الـ DOM tree بعمق أولًا (depth-first)، وبيكتب الحروف والـ styles في buffer اسمه `Screen`. كل حرف بيتحوّل لـ packed cell. والـ output هو frame كامل: كل cell على الـ terminal ليها حرف و style وعرض محددين.
 
-**المرحلة 3: الـ Overlay.** تحديد النص وتظليل نتائج البحث بيعدّلوا على الـ screen buffer في مكانه (in-place)، وبيقلبوا الـ style IDs على الـ cells المطابقة. التحديد بيطبّق inverse video عشان يطلّع شكل "النص المظلّل" المعروف. أما تظليل البحث فبيستخدم معالجة بصرية أقوى: inverse + foreground أصفر + bold + underline للنتيجة الحالية، و inverse بس لباقي النتائج. وده بيلوّث الـ buffer، وبيتتابع بـ flag اسمه `prevFrameContaminated` عشان الـ frame اللي بعده يعرف إنه يتخطى الـ blit fast-path. التلويث ده trade-off (مفاضلة: بتكسب حاجة وبتدفع ثمنها في حاجة تانية) مقصود: التعديل في المكان بيوفّر تخصيص overlay buffer منفصل (يعني توفير 48KB على terminal مقاسه 200x120)، والثمن هو frame واحد بـ full damage بعد ما الـ overlay يتشال.
+**المرحلة 3: الـ Overlay.** تحديد النص وتظليل نتائج البحث بيعدّلوا على الـ screen buffer في مكانه (in-place)، وبيقلبوا الـ style IDs على الـ cells المطابقة. التحديد بيطبّق inverse video عشان يطلّع شكل "النص المظلّل" المعروف. أما تظليل البحث فبيستخدم معالجة بصرية أقوى: inverse + foreground أصفر + bold + underline للنتيجة الحالية، و inverse بس لباقي النتائج. وده بيلوّث الـ buffer، وبيتتابع بـ flag اسمه `prevFrameContaminated` عشان الـ frame اللي بعده يعرف إنه يتخطى الـ blit fast-path. التلويث ده trade-off مقصود: التعديل في المكان بيوفّر تخصيص overlay buffer منفصل (يعني توفير 48KB على terminal مقاسه 200x120)، والثمن هو frame واحد بـ full damage بعد ما الـ overlay يتشال.
 
 **المرحلة 4: الـ Diff.** الشاشة الجديدة بتتقارن cell بـ cell مع شاشة الـ front frame. والـ cells اللي اتغيرت هي بس اللي بتنتج output. المقارنة عبارة عن مقارنتين بين أرقام صحيحة لكل cell (الـ 2 packed `Int32` words)، والـ diff بيمشي على الـ damage rectangle بس مش الشاشة كلها. في frame مستقر (spinner بس هو اللي بيتحرك)، ده ممكن ينتج patches لـ 3 cells من أصل 24,000. وكل patch عبارة عن object على شكل `{ type: 'stdout', content: string }` فيه sequence تحريك الـ cursor ومحتوى الـ cell مشفّر بـ ANSI.
 
 **المرحلة 5: الـ Optimize.** الـ patches المتجاورة في نفس الصف بتتدمج في كتابة واحدة. وتحريكات الـ cursor الزيادة بتتشال: لو الـ patch رقم N بينتهي عند العمود 10 والـ patch رقم N+1 بيبدأ عند العمود 11، الـ cursor أصلًا في المكان الصح ومفيش داعي لـ sequence تحريك. وانتقالات الـ style بتتعمل لها serialize مسبقًا عن طريق الـ cache في `StylePool.transition()`، فالتغيير من "bold red" لـ "dim green" عبارة عن lookup واحد لـ string متخزن، مش عملية diff و serialize. والـ optimizer عادةً بيقلل عدد الـ bytes بنسبة 30-50% مقارنة بالـ output الساذج cell بـ cell.
 
-**المرحلة 6: الكتابة.** الـ patches بعد التحسين بتتحوّل لـ ANSI escape sequences (سلاسل bytes بتتحكم في الـ terminal) وبتتكتب على الـ stdout في استدعاء `write()` واحد، ومتغلّفة بعلامات الـ synchronized update (BSU/ESU) على الـ terminals اللي بتدعمها. الـ BSU (Begin Synchronized Update، `ESC [ ? 2026 h`) بيقول للـ terminal يخزّن كل الـ output اللي جاي في buffer، والـ ESU (`ESC [ ? 2026 l`) بيقول له يعمل flush. وده بيشيل الـ tearing الظاهر على الـ terminals اللي بتدعم البروتوكول: الـ frame كله بيظهر مرة واحدة (atomic).
+**المرحلة 6: الكتابة.** الـ patches بعد التحسين بتتحوّل لـ ANSI escape sequences وبتتكتب على الـ stdout في استدعاء `write()` واحد، ومتغلّفة بعلامات الـ synchronized update (BSU/ESU) على الـ terminals اللي بتدعمها. الـ BSU (Begin Synchronized Update، `ESC [ ? 2026 h`) بيقول للـ terminal يخزّن كل الـ output اللي جاي في buffer، والـ ESU (`ESC [ ? 2026 l`) بيقول له يعمل flush. وده بيشيل الـ tearing الظاهر على الـ terminals اللي بتدعم البروتوكول: الـ frame كله بيظهر مرة واحدة (atomic).
 
 كل frame بيبلّغ عن تفاصيل توقيته عن طريق object من نوع `FrameEvent`:
 
@@ -205,7 +205,7 @@ word1: styleId[31:17] | hyperlinkId[16:2] | width[1:0]
 
 وفيه view موازي من نوع `BigInt64Array` على نفس الـ buffer بيسمح بعمليات جماعية: مسح صف كامل عبارة عن استدعاء `fill()` واحد على words بحجم 64-bit بدل تصفير كل field لوحده.
 
-**CharPool** بيعمل intern للـ character strings لـ integer IDs. وعنده fast path (طريق مختصر للحالات البسيطة) للـ ASCII: `Int32Array` فيه 128 خانة بيربط أكواد الحروف مباشرة بالـ indexes في الـ pool، وبيتجنب البحث في الـ `Map` تمامًا. أما الحروف متعددة الـ bytes (الـ emoji، ورموز CJK) فبتروح لـ `Map<string, number>`. الـ index 0 دائمًا المسافة، والـ index 1 دائمًا الـ string الفاضي.
+**CharPool** بيعمل intern للـ character strings لـ integer IDs. وعنده fast path للـ ASCII: `Int32Array` فيه 128 خانة بيربط أكواد الحروف مباشرة بالـ indexes في الـ pool، وبيتجنب البحث في الـ `Map` تمامًا. أما الحروف متعددة الـ bytes (الـ emoji، ورموز CJK) فبتروح لـ `Map<string, number>`. الـ index 0 دائمًا المسافة، والـ index 1 دائمًا الـ string الفاضي.
 
 ```typescript
 export class CharPool {
@@ -257,7 +257,7 @@ export class CharPool {
 
 الـ arrays الموازية دي بتتجنب توسيع صيغة الـ packed cell (وده كان هيزوّد الضغط على الـ cache في الـ inner loop الخاص بالـ diff)، وفي نفس الوقت بتوفّر الـ metadata اللي التحديد والنسخ والتحسين محتاجينها.
 
-الـ `Screen` كمان بيوفّر factory (function وظيفتها تنشئ الـ object المناسب وترجّعه) اسمها `createScreen()` بتاخد الأبعاد و references للـ pools. إنشاء الشاشة بيصفّر الـ `Int32Array` عن طريق `fill(0n)` على الـ view من نوع `BigInt64Array`: استدعاء native واحد بيمسح الـ buffer كله في microseconds. وده بيستخدم أثناء الـ resize (لما نحتاج frame buffers جديدة) وأثناء migration الـ pools (لما الـ cells في الشاشة القديمة بتتعمل لها intern تاني في pools جديدة).
+الـ `Screen` كمان بيوفّر factory اسمها `createScreen()` بتاخد الأبعاد و references للـ pools. إنشاء الشاشة بيصفّر الـ `Int32Array` عن طريق `fill(0n)` على الـ view من نوع `BigInt64Array`: استدعاء native واحد بيمسح الـ buffer كله في microseconds. وده بيستخدم أثناء الـ resize (لما نحتاج frame buffers جديدة) وأثناء migration الـ pools (لما الـ cells في الشاشة القديمة بتتعمل لها intern تاني في pools جديدة).
 
 ---
 
@@ -300,7 +300,7 @@ graph TD
 
 الـ component `OffscreenFreeze` عبارة عن تحسين للأداء خاص بالـ rendering في الـ terminal. لما رسالة تتحرك لفوق خارج الـ viewport، الـ React element الخاص بيها بيتعمل له cache والـ subtree الخاص بيها بيتجمّد. وده بيمنع التحديثات المعتمدة على timers (الـ spinners، وعدادات الوقت المنقضي) في الرسائل اللي خارج الشاشة من إنها تسبب resets للـ terminal. من غير ده، مؤشر بيلف في الرسالة رقم 3 كان هيسبب repaint كامل رغم إن المستخدم بيبص على الرسالة رقم 47.
 
-الـ component كله بيتعمل له compile بالـ React Compiler. بدل `useMemo` و `useCallback` اليدويين، الـ compiler بيحقن memoization (يحسب النتيجة مرة واحدة ويحتفظ بيها) على مستوى كل expression باستخدام slot arrays:
+الـ component كله بيتعمل له compile بالـ React Compiler. بدل `useMemo` و `useCallback` اليدويين، الـ compiler بيحقن memoization على مستوى كل expression باستخدام slot arrays:
 
 ```typescript
 const $ = _c(14);  // 14 memoization slots
@@ -331,7 +331,7 @@ if ($[0] !== dep1 || $[1] !== dep2) {
 
 **إعلان الـ cursor** بيحل مشكلة دقيقة. محاكيات الـ terminal بتعرض نص الـ preedit الخاص بالـ IME (Input Method Editor) عند موقع الـ cursor الفعلي. ومستخدمي CJK وهم بيكتبوا الحروف محتاجين الـ cursor يكون عند موضع الكتابة في الـ text input، مش في آخر الشاشة اللي الـ terminal كان هيحطه فيها بشكل طبيعي. الـ hook `useDeclaredCursor` بيسمح لأي component يعلن الـ cursor المفروض يكون فين بعد كل frame. والـ Ink class بيقرأ موقع الـ node اللي اتعلن عنه من `nodeCache`، وبيحوّله لإحداثيات على الشاشة، وبيطلّع sequences تحريك الـ cursor بعد الـ diff. وقارئات الشاشة والمكبّرات كمان بتتابع الـ cursor الفعلي، فالآلية دي بتفيد إمكانية الوصول (accessibility) زي ما بتفيد إدخال CJK.
 
-في الـ main-screen mode، موقع الـ cursor اللي اتعلن عنه بيتتابع بشكل منفصل عن `frame.cursor`. وده لازم يفضل في آخر المحتوى عشان الـ invariants (شروط لازم تفضل صحيحة طول الوقت) الخاصة بالحركة النسبية في الـ log-update. وفي الـ alt-screen mode، المشكلة أبسط: كل frame بيبدأ بـ `CSI H` (رجوع الـ cursor للبداية)، فالـ cursor اللي اتعلن عنه مجرد موقع مطلق بيتطلّع في آخر الـ frame.
+في الـ main-screen mode، موقع الـ cursor اللي اتعلن عنه بيتتابع بشكل منفصل عن `frame.cursor`. وده لازم يفضل في آخر المحتوى عشان الـ invariants الخاصة بالحركة النسبية في الـ log-update. وفي الـ alt-screen mode، المشكلة أبسط: كل frame بيبدأ بـ `CSI H` (رجوع الـ cursor للبداية)، فالـ cursor اللي اتعلن عنه مجرد موقع مطلق بيتطلّع في آخر الـ frame.
 
 ---
 
